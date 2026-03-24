@@ -1,0 +1,19 @@
+<?php
+
+namespace App\Providers;
+
+use App\Models\Chat;
+use App\Policies\ChatPolicy;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\ServiceProvider;
+
+class AppServiceProvider extends ServiceProvider
+{
+    public function register(): void {}
+
+    public function boot(): void
+    {
+        // Регистрируем политику доступа к чатам
+        Gate::policy(Chat::class, ChatPolicy::class);
+    }
+}
