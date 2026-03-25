@@ -235,11 +235,14 @@ function formatCardNumber() {
 }
 
 function formatExpire() {
+  // Принимаем формат ММ/ГГ (4 цифры) или ММ/ГГГГ (6 цифр)
   const digits = expireDisplay.value.replace(/\D/g, '').slice(0, 6)
   if (digits.length >= 3) {
-    expireDisplay.value = digits.slice(0, 2) + '/' + digits.slice(2)
+    expireDisplay.value  = digits.slice(0, 2) + '/' + digits.slice(2)
     payForm.expire_month = digits.slice(0, 2)
-    payForm.expire_year  = '20' + digits.slice(2, 4)
+    // Если введено 2 цифры года (ГГ) — добавляем "20", если 4 цифры (ГГГГ) — берём как есть
+    const yearPart = digits.slice(2)
+    payForm.expire_year = yearPart.length <= 2 ? '20' + yearPart.padEnd(2, '0') : yearPart
   } else {
     expireDisplay.value  = digits
     payForm.expire_month = digits.slice(0, 2)
@@ -247,36 +250,70 @@ function formatExpire() {
   }
 }
 
+// ── Клиентская валидация формы оплаты ────────────────────────
+function validatePayForm() {
+  const errs = {}
+  const digits = payForm.card_number.replace(/\s/g, '')
+
+  if (!digits || !/^\d{16}$/.test(digits))
+    errs.card_number = ['Номер карты должен содержать 16 цифр.']
+
+  if (!payForm.card_holder || payForm.card_holder.trim().length < 3)
+    errs.card_holder = ['Введите имя держателя карты (латиницей).']
+  else if (!/^[A-Za-z\s]+$/.test(payForm.card_holder))
+    errs.card_holder = ['Только латинские буквы.']
+
+  if (!payForm.expire_month || !payForm.expire_year) {
+    errs.expire_month = ['Введите срок действия карты в формате ММ/ГГ.']
+  } else {
+    const now = new Date()
+    const y = parseInt(payForm.expire_year), m = parseInt(payForm.expire_month)
+    if (y < now.getFullYear() || (y === now.getFullYear() && m < now.getMonth() + 1))
+      errs.expire_month = ['Срок действия карты истёк.']
+  }
+
+  if (!payForm.cvv || !/^\d{3,4}$/.test(payForm.cvv))
+    errs.cvv = ['CVV должен содержать 3 или 4 цифры.']
+
+  return errs
+}
+
 async function submitPayment() {
+  // Сначала валидируем на клиенте — не тратим запрос на очевидные ошибки
+  const clientErrors = validatePayForm()
+  if (Object.keys(clientErrors).length > 0) {
+    errors.value = clientErrors
+    return
+  }
+
   errors.value = {}
   paying.value = true
   step.value   = 'processing'
 
-  // Анимация прогресса 5 секунд
+  // Анимация прогресса ~5 секунд
   processingPct.value = 0
   const interval = setInterval(() => {
     processingPct.value = Math.min(processingPct.value + 2, 95)
   }, 100)
 
   try {
-    const { data } = await axios.post('/subscription/purchase', {
+    await axios.post('/subscription/purchase', {
       plan_id:      selectedPlan.value.id,
       card_number:  payForm.card_number.replace(/\s/g, ''),
       card_holder:  payForm.card_holder,
       expire_month: payForm.expire_month,
       expire_year:  payForm.expire_year,
       cvv:          payForm.cvv,
-      save_card:    false, // спросим отдельно
+      save_card:    false,
     })
 
     // Ждём чтобы анимация дошла до 100%
     await new Promise(r => setTimeout(r, 500))
     clearInterval(interval)
     processingPct.value = 100
-
     await new Promise(r => setTimeout(r, 400))
 
-    // Обновляем пользователя
+    // Обновляем данные пользователя (подписка активирована)
     await auth.fetchMe()
 
     maskedCard.value = '**** **** **** ' + payForm.card_number.replace(/\s/g, '').slice(-4)
@@ -286,7 +323,14 @@ async function submitPayment() {
     clearInterval(interval)
     step.value = 'payment'
     paying.value = false
-    if (e.response?.data?.errors) errors.value = e.response.data.errors
+    // Серверные ошибки валидации (422) или другие
+    if (e.response?.data?.errors) {
+      errors.value = e.response.data.errors
+    } else if (e.response?.data?.message) {
+      errors.value = { card_number: [e.response.data.message] }
+    } else {
+      errors.value = { card_number: ['Ошибка оплаты. Проверьте данные и попробуйте снова.'] }
+    }
   }
 }
 

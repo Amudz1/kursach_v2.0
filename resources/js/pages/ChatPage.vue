@@ -84,7 +84,7 @@
               <!-- Аватар AI -->
               <div v-if="msg.role === 'assistant'" class="msg-avatar">🤖</div>
 
-              <div :class="['message-bubble', msg.role === 'user' ? 'bubble-user' : 'bubble-ai']">
+              <div :class="['message-bubble', msg.role === 'user' ? 'bubble-user' : (msg.is_error ? 'bubble-error' : 'bubble-ai')]">
                 <!-- Вложение -->
                 <div v-if="msg.has_attachment" class="msg-attachment">
                   📎 {{ msg.attachment_name }}
@@ -221,8 +221,9 @@ async function createNewChat() {
 
 async function deleteChat(id) {
   if (!confirm('Удалить чат?')) return
+  const wasActive = chatStore.activeChatId === id
   await chatStore.deleteChat(id)
-  router.replace('/chat')
+  if (wasActive) router.replace('/chat')
 }
 
 async function sendMessage() {
@@ -231,13 +232,15 @@ async function sendMessage() {
 
   limitReached.value = false
   const file = selectedFile.value
+  const savedText = text
 
-  inputText.value  = ''
+  // Очищаем поле ввода сразу (UX), но текст сохранён в savedText
+  inputText.value    = ''
   selectedFile.value = null
   resetTextarea()
 
   try {
-    const result = await chatStore.sendMessage(chatStore.activeChatId, text, file)
+    const result = await chatStore.sendMessage(chatStore.activeChatId, savedText, file)
 
     // Обновляем лимит у пользователя
     if (result.remaining_prompts !== undefined) {
@@ -246,6 +249,11 @@ async function sendMessage() {
   } catch (e) {
     if (e.response?.status === 403) {
       limitReached.value = true
+    } else {
+      // При любой другой ошибке — возвращаем текст в поле и показываем алерт
+      inputText.value = savedText
+      const msg = e.response?.data?.message || 'Ошибка отправки сообщения. Проверьте подключение.'
+      chatStore.pushErrorMessage(msg)
     }
   }
 
@@ -481,6 +489,13 @@ watch(() => chatStore.messages.length, () => scrollToBottom())
   color: #fff;
   border-bottom-right-radius: 4px;
 }
+.bubble-error {
+  background: rgba(248,113,113,.1);
+  border: 1px solid rgba(248,113,113,.3);
+  color: var(--red);
+  border-bottom-left-radius: 4px;
+}
+
 .bubble-ai {
   background: var(--bg-card);
   border: 1px solid var(--border);

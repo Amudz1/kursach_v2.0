@@ -55,7 +55,11 @@ export const useChatStore = defineStore('chat', () => {
             }
 
             return data
+        } catch (e) {
+            // Пробрасываем ошибку в компонент (403 = лимит, другие = сеть/сервер)
+            throw e
         } finally {
+            // sending сбрасывается всегда — и при успехе, и при ошибке
             sending.value = false
         }
     }
@@ -69,8 +73,19 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
+    // Добавляет системное сообщение об ошибке прямо в чат
+    function pushErrorMessage(text) {
+        messages.value.push({
+            id: 'err_' + Date.now(),
+            role: 'assistant',
+            content: '⚠️ ' + text,
+            created_at: new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }),
+            is_error: true,
+        })
+    }
+
     return {
         chats, activeChatId, messages, loading, sending,
-        loadChats, createChat, loadMessages, sendMessage, deleteChat
+        loadChats, createChat, loadMessages, sendMessage, deleteChat, pushErrorMessage
     }
 })

@@ -65,7 +65,7 @@ class ChatController extends Controller
         // Проверяем лимит промтов
         if (!$user->canSendMessage()) {
             return response()->json([
-                'message' => 'Лимит бесплатных запросов исчерпан. Оформите подписку для продолжения.',
+                'message'       => 'Лимит бесплатных запросов исчерпан. Оформите подписку для продолжения.',
                 'limit_reached' => true,
             ], 403);
         }
@@ -75,92 +75,104 @@ class ChatController extends Controller
             'attachment' => 'nullable|file|max:10240|mimes:txt,pdf,doc,docx,png,jpg,jpeg,gif',
         ]);
 
-        // Сохраняем вложение
-        $attachmentPath = null;
-        $attachmentName = null;
-        if ($request->hasFile('attachment')) {
-            $file           = $request->file('attachment');
-            $attachmentPath = $file->store('attachments', 'public');
-            $attachmentName = $file->getClientOriginalName();
-        }
-
-        $content = $request->input('content', '');
-        if ($attachmentName) {
-            $content = $content ?: "Прикреплён файл: {$attachmentName}";
-        }
-
-        // Сохраняем сообщение пользователя
-        $userMessage = Message::create([
-            'chat_id'         => $chat->id,
-            'user_id'         => $user->id,
-            'role'            => 'user',
-            'content'         => $content,
-            'attachment_path' => $attachmentPath,
-            'attachment_name' => $attachmentName,
-        ]);
-
-        // Обновляем заголовок чата из первого сообщения
-        if ($chat->message_count === 0) {
-            $chat->update(['title' => Chat::generateTitle($content)]);
-        }
-
-        // Строим историю для AI (последние 20 сообщений)
-        $history = $chat->messages()
-            ->latest()
-            ->take(20)
-            ->get()
-            ->reverse()
-            ->map(fn($m) => ['role' => $m->role, 'content' => $m->content])
-            ->values()
-            ->toArray();
-
-        // Получаем ответ AI
-        $aiContent = $this->ai->chat($history);
-
-        // Сохраняем ответ AI
-        $aiMessage = Message::create([
-            'chat_id'    => $chat->id,
-            'user_id'    => $user->id,
-            'role'       => 'assistant',
-            'content'    => $aiContent,
-            'model_used' => config('services.openrouter.model'),
-        ]);
-
-        // Обновляем счётчики чата
-        $chat->increment('message_count', 2);
-        $chat->update(['last_message_at' => now()]);
-
-        // Увеличиваем счётчик использованных промтов (только для бесплатных)
-        if (!$user->hasActiveSubscription()) {
-            $limit = RequestLimit::firstOrCreate(
-                ['user_id' => $user->id],
-                ['daily_limit' => config('app.free_prompt_limit', 12), 'reset_date' => today()]
-            );
-
-            if ($limit->reset_date !== today()->toDateString()) {
-                $limit->update(['used_today' => 1, 'reset_date' => today()]);
-            } else {
-                $limit->increment('used_today');
+        try {
+            // Сохраняем вложение
+            $attachmentPath = null;
+            $attachmentName = null;
+            if ($request->hasFile('attachment')) {
+                $file           = $request->file('attachment');
+                $attachmentPath = $file->store('attachments', 'public');
+                $attachmentName = $file->getClientOriginalName();
             }
-        }
 
-        return response()->json([
-            'user_message' => [
-                'id'              => $userMessage->id,
+            $content = $request->input('content', '');
+            if ($attachmentName) {
+                $content = $content ?: "Прикреплён файл: {$attachmentName}";
+            }
+
+            // Сохраняем сообщение пользователя
+            $userMessage = Message::create([
+                'chat_id'         => $chat->id,
+                'user_id'         => $user->id,
                 'role'            => 'user',
-                'content'         => $userMessage->content,
+                'content'         => $content,
+                'attachment_path' => $attachmentPath,
                 'attachment_name' => $attachmentName,
-                'has_attachment'  => !empty($attachmentPath),
-                'created_at'      => $userMessage->created_at->format('H:i'),
-            ],
-            'ai_message' => [
-                'id'         => $aiMessage->id,
+            ]);
+
+            // Обновляем заголовок чата из первого сообщения
+            if ($chat->message_count === 0) {
+                $chat->update(['title' => Chat::generateTitle($content)]);
+            }
+
+            // Строим историю для AI (последние 20 сообщений)
+            $history = $chat->messages()
+                ->latest()
+                ->take(20)
+                ->get()
+                ->reverse()
+                ->map(fn($m) => ['role' => $m->role, 'content' => $m->content])
+                ->values()
+                ->toArray();
+
+            // Получаем ответ AI
+            $aiContent = $this->ai->chat($history);
+
+            // Сохраняем ответ AI
+            $aiMessage = Message::create([
+                'chat_id'    => $chat->id,
+                'user_id'    => $user->id,
                 'role'       => 'assistant',
                 'content'    => $aiContent,
-                'created_at' => $aiMessage->created_at->format('H:i'),
-            ],
-            'remaining_prompts' => $user->getRemainingPrompts(),
-        ]);
+                'model_used' => config('services.openrouter.model'),
+            ]);
+
+            // Обновляем счётчики чата
+            $chat->increment('message_count', 2);
+            $chat->update(['last_message_at' => now()]);
+
+            // Увеличиваем счётчик использованных промтов (только для бесплатных)
+            if (!$user->hasActiveSubscription()) {
+                $limit = RequestLimit::firstOrCreate(
+                    ['user_id' => $user->id],
+                    ['daily_limit' => config('app.free_prompt_limit', 12), 'reset_date' => today()]
+                );
+
+                if ($limit->reset_date !== today()->toDateString()) {
+                    $limit->update(['used_today' => 1, 'reset_date' => today()]);
+                } else {
+                    $limit->increment('used_today');
+                }
+            }
+
+            return response()->json([
+                'user_message' => [
+                    'id'              => $userMessage->id,
+                    'role'            => 'user',
+                    'content'         => $userMessage->content,
+                    'attachment_name' => $attachmentName,
+                    'has_attachment'  => !empty($attachmentPath),
+                    'created_at'      => $userMessage->created_at->format('H:i'),
+                ],
+                'ai_message' => [
+                    'id'         => $aiMessage->id,
+                    'role'       => 'assistant',
+                    'content'    => $aiContent,
+                    'created_at' => $aiMessage->created_at->format('H:i'),
+                ],
+                'remaining_prompts' => $user->getRemainingPrompts(),
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('ChatController@sendMessage', [
+                'error'   => $e->getMessage(),
+                'chat_id' => $chat->id,
+                'user_id' => $user->id,
+            ]);
+            return response()->json([
+                'message' => 'Внутренняя ошибка сервера. Попробуйте ещё раз.',
+            ], 500);
+        }
     }
 
     /** Удалить чат */
