@@ -163,15 +163,28 @@ class ChatController extends Controller
                 'remaining_prompts' => $user->getRemainingPrompts(),
             ]);
 
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Ловим конкретно ошибки БД (например, SQLSTATE[22003] Numeric value out of range)
+            \Illuminate\Support\Facades\Log::error('DB Error in Chat: ' . $e->getMessage(), [
+                'sql_state' => $e->getCode(),
+                'chat_id'   => $chat->id,
+                'user_id'   => $user->id,
+            ]);
+
+            return response()->json([
+                'message' => 'Ошибка базы данных при обновлении лимитов. Попробуйте позже.',
+                'debug'   => env('APP_DEBUG') ? $e->getMessage() : null,
+            ], 503); // 503 Service Unavailable
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('ChatController@sendMessage', [
-                'error'   => $e->getMessage(),
+            // Все остальные ошибки (сеть, AI, таймаут)
+            \Illuminate\Support\Facades\Log::error('AI Service Error in Chat: ' . $e->getMessage(), [
                 'chat_id' => $chat->id,
                 'user_id' => $user->id,
             ]);
+
             return response()->json([
-                'message' => 'Внутренняя ошибка сервера. Попробуйте ещё раз.',
-            ], 500);
+                'message' => 'Внутренняя ошибка AI сервиса. Попробуйте позже.',
+            ], 503);
         }
     }
 

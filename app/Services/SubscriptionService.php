@@ -42,7 +42,7 @@ class SubscriptionService
         // Обнуляем лимиты запросов — теперь безлимит
         RequestLimit::updateOrCreate(
             ['user_id' => $user->id],
-            ['used_today' => 0, 'daily_limit' => PHP_INT_MAX, 'reset_date' => today()]
+            ['used_today' => 0, 'daily_limit' => 1000000000, 'reset_date' => today()]
         );
 
         return $subscription->load('plan');
