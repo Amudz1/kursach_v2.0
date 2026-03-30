@@ -12,4 +12,4 @@
     <div id="app"></div>
 </body>
 </html>
-<?php /**PATH C:\Users\Name\VSCode project\AiBudzLaravel\resources\views/app.blade.php ENDPATH**/ ?>
+<?php /**PATH C:\Users\Name\VSCodeProject\AiBudzLaravel\resources\views/app.blade.php ENDPATH**/ ?>

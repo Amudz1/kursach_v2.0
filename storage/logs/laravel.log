@@ -6682,3 +6682,31 @@ CONTEXT:  неименованный портал, параметр $1 = '...' a
 "} 
 [2026-03-25 16:49:12] local.ERROR: AiService exception {"message":"cURL error 60: SSL certificate OpenSSL verify result: unable to get local issuer certificate (20) (see https://curl.haxx.se/libcurl/c/libcurl-errors.html) for https://openrouter.ai/api/v1/chat/completions"} 
 [2026-03-25 17:34:37] local.ERROR: AiService exception {"message":"cURL error 60: SSL certificate OpenSSL verify result: unable to get local issuer certificate (20) (see https://curl.haxx.se/libcurl/c/libcurl-errors.html) for https://openrouter.ai/api/v1/chat/completions"} 
+[2026-03-25 22:23:21] local.ERROR: AiService exception {"message":"cURL error 60: SSL certificate OpenSSL verify result: unable to get local issuer certificate (20) (see https://curl.haxx.se/libcurl/c/libcurl-errors.html) for https://openrouter.ai/api/v1/chat/completions"} 
+[2026-03-25 22:23:58] local.ERROR: AiService exception {"message":"cURL error 60: SSL certificate OpenSSL verify result: unable to get local issuer certificate (20) (see https://curl.haxx.se/libcurl/c/libcurl-errors.html) for https://openrouter.ai/api/v1/chat/completions"} 
+[2026-03-27 18:16:55] local.ERROR: AiService exception {"message":"cURL error 60: SSL certificate OpenSSL verify result: unable to get local issuer certificate (20) (see https://curl.haxx.se/libcurl/c/libcurl-errors.html) for https://openrouter.ai/api/v1/chat/completions"} 
+[2026-03-27 18:50:17] local.ERROR: AiService exception {"message":"cURL error 60: SSL certificate OpenSSL verify result: unable to get local issuer certificate (20) (see https://curl.haxx.se/libcurl/c/libcurl-errors.html) for https://openrouter.ai/api/v1/chat/completions"} 
+[2026-03-27 18:51:34] local.ERROR: AiService exception {"message":"Method Illuminate\\Http\\Client\\PendingRequest::verify does not exist."} 
+[2026-03-27 18:51:39] local.ERROR: AiService exception {"message":"Method Illuminate\\Http\\Client\\PendingRequest::verify does not exist."} 
+[2026-03-27 19:27:57] local.ERROR: OpenRouter API error {"status":401,"body":"{\"error\":{\"message\":\"Missing Authentication header\",\"code\":401}}"} 
+[2026-03-27 19:32:14] local.ERROR: Command "tinker" is not defined. {"exception":"[object] (Symfony\\Component\\Console\\Exception\\CommandNotFoundException(code: 0): Command \"tinker\" is not defined. at C:/Users/Name/VSCodeProject/AiBudzLaravel/vendor/symfony/console/Application.php:759)
+[stacktrace]
+#0 C:/Users/Name/VSCodeProject/AiBudzLaravel/vendor/symfony/console/Application.php(298): Symfony/Component/Console/Application->find('tinker')
+#1 C:/Users/Name/VSCodeProject/AiBudzLaravel/vendor/symfony/console/Application.php(195): Symfony/Component/Console/Application->doRun(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#2 C:/Users/Name/VSCodeProject/AiBudzLaravel/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(198): Symfony/Component/Console/Application->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#3 C:/Users/Name/VSCodeProject/AiBudzLaravel/artisan(17): Illuminate/Foundation/Console/Kernel->handle(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#4 {main}
+"} 
+[2026-03-27 19:33:07] local.ERROR: OpenRouter API error {"status":401,"body":"{\"error\":{\"message\":\"User not found.\",\"code\":401}}"} 
+[2026-03-27 19:33:48] local.ERROR: OpenRouter API error {"status":401,"body":"{\"error\":{\"message\":\"User not found.\",\"code\":401}}"} 
+[2026-03-27 19:51:02] local.ERROR: Maximum execution time of 30 seconds exceeded {"userId":2,"exception":"[object] (Symfony\\Component\\ErrorHandler\\Error\\FatalError(code: 0): Maximum execution time of 30 seconds exceeded at C:/Users/Name/VSCodeProject/AiBudzLaravel/vendor/guzzlehttp/guzzle/src/Handler/CurlFactory.php:501)
+[stacktrace]
+#0 {main}
+"} 
+[2026-03-27 19:51:37] local.ERROR: Maximum execution time of 30 seconds exceeded {"userId":2,"exception":"[object] (Symfony\\Component\\ErrorHandler\\Error\\FatalError(code: 0): Maximum execution time of 30 seconds exceeded at C:/Users/Name/VSCodeProject/AiBudzLaravel/vendor/guzzlehttp/guzzle/src/Handler/CurlFactory.php:501)
+[stacktrace]
+#0 {main}
+"} 
+[2026-03-29 17:25:14] local.ERROR: OpenRouter API error {"status":402,"body":"{\"error\":{\"message\":\"This request requires more credits, or fewer max_tokens. You requested up to 4096 tokens, but can only afford 3955. To increase, visit https://openrouter.ai/settings/credits and upgrade to a paid account\",\"code\":402,\"metadata\":{\"provider_name\":null}},\"user_id\":\"user_3BXJxBEooX8kArVxuHR35HNOOhN\"}"} 
+[2026-03-30 14:36:04] local.ERROR: OpenRouter API error {"status":402,"body":"{\"error\":{\"message\":\"This request requires more credits, or fewer max_tokens. You requested up to 4096 tokens, but can only afford 3955. To increase, visit https://openrouter.ai/settings/credits and upgrade to a paid account\",\"code\":402,\"metadata\":{\"provider_name\":null}},\"user_id\":\"user_3BXJxBEooX8kArVxuHR35HNOOhN\"}"} 
+[2026-03-30 14:36:08] local.ERROR: OpenRouter API error {"status":402,"body":"{\"error\":{\"message\":\"This request requires more credits, or fewer max_tokens. You requested up to 4096 tokens, but can only afford 3955. To increase, visit https://openrouter.ai/settings/credits and upgrade to a paid account\",\"code\":402,\"metadata\":{\"provider_name\":null}},\"user_id\":\"user_3BXJxBEooX8kArVxuHR35HNOOhN\"}"} 

@@ -94,10 +94,10 @@
                 <div class="msg-time">{{ msg.created_at }}</div>
               </div>
 
-              <!-- Аватар пользователя -->
+              <!-- Аватар пользователя
               <div v-if="msg.role === 'user'" class="msg-avatar msg-avatar--user">
                 {{ auth.username[0]?.toUpperCase() }}
-              </div>
+              </div> -->
             </div>
 
             <!-- Typing индикатор -->
@@ -227,38 +227,58 @@ async function deleteChat(id) {
 }
 
 async function sendMessage() {
-  const text = inputText.value.trim()
-  if ((!text && !selectedFile.value) || chatStore.sending) return
+    const text = inputText.value.trim();
+    if ((!text && !selectedFile.value) || chatStore.sending) return;
 
-  limitReached.value = false
-  const file = selectedFile.value
-  const savedText = text
+    limitReached.value = false;
+    const file = selectedFile.value;
+    const savedText = text;
 
-  // Очищаем поле ввода сразу (UX), но текст сохранён в savedText
-  inputText.value    = ''
-  selectedFile.value = null
-  resetTextarea()
+    // 1. OPTIMISTIC: только НАШЕ сообщение
+    const tempId = `temp-${Date.now()}`;
+    chatStore.messages.push({
+        id: tempId,
+        role: 'user',
+        content: savedText || `Прикреплён файл: ${file?.name}`,
+        attachment_name: file?.name || null,
+        has_attachment: !!file,
+        created_at: new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
+    });
 
-  try {
-    const result = await chatStore.sendMessage(chatStore.activeChatId, savedText, file)
+    // Очищаем input
+    inputText.value = '';
+    selectedFile.value = null;
+    resetTextarea();
 
-    // Обновляем лимит у пользователя
-    if (result.remaining_prompts !== undefined) {
-      auth.updateUser({ remaining_prompts: result.remaining_prompts })
+    try {
+        chatStore.sending = true;
+        
+        // 2. Store сам все сделает!
+        const result = await chatStore.sendMessage(chatStore.activeChatId, savedText, file);
+
+        // 3. УДАЛЯЕМ optimistic (store добавит реальное)
+        chatStore.messages = chatStore.messages.filter(m => m.id !== tempId);
+
+        // Лимит
+        if (result.remaining_prompts !== undefined) {
+            auth.updateUser({ remaining_prompts: result.remaining_prompts });
+        }
+
+    } catch (e) {
+        // Rollback
+        // НЕ удаляем — store сам обработает
+        if (e.response?.status === 403) {
+            limitReached.value = true;
+        } else {
+            inputText.value = savedText;
+            chatStore.pushErrorMessage(e.response?.data?.message || 'Ошибка.');
+        }
+    } finally {
+        chatStore.sending = false;
     }
-  } catch (e) {
-    if (e.response?.status === 403) {
-      limitReached.value = true
-    } else {
-      // При любой другой ошибке — возвращаем текст в поле и показываем алерт
-      inputText.value = savedText
-      const msg = e.response?.data?.message || 'Ошибка отправки сообщения. Проверьте подключение.'
-      chatStore.pushErrorMessage(msg)
-    }
-  }
 
-  await nextTick()
-  scrollToBottom()
+    await nextTick();
+    scrollToBottom();
 }
 
 function onFileSelect(e) {
@@ -306,8 +326,8 @@ watch(() => chatStore.messages.length, () => scrollToBottom())
 
 /* ── Sidebar ───────────────────────────────────────── */
 .chat-sidebar {
-  width: 280px;
-  min-width: 220px;
+  width: 160px;
+  min-width: 140px;
   background: var(--bg-card);
   border-right: 1px solid var(--border);
   display: flex;
@@ -446,10 +466,10 @@ watch(() => chatStore.messages.length, () => scrollToBottom())
 .messages-area {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 20px 20px 20px 160px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 20px;
 }
 .messages-loading { display: flex; align-items: center; gap: 10px; color: var(--text-muted); padding: 20px; }
 
@@ -458,6 +478,7 @@ watch(() => chatStore.messages.length, () => scrollToBottom())
   align-items: flex-end;
   gap: 8px;
   max-width: 80%;
+  margin-bottom: 10px;
 }
 .msg-left  { align-self: flex-start; }
 .msg-right { align-self: flex-end; flex-direction: row-reverse; }

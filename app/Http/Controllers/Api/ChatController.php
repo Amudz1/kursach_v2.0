@@ -104,7 +104,7 @@ class ChatController extends Controller
             if ($chat->message_count === 0) {
                 $chat->update(['title' => Chat::generateTitle($content)]);
             }
-
+            
             // Строим историю для AI (последние 20 сообщений)
             $history = $chat->messages()
                 ->latest()

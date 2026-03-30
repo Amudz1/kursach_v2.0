@@ -40,7 +40,11 @@ class AiService
                 'Authorization' => "Bearer {$this->apiKey}",
                 'HTTP-Referer'  => config('app.url'),
                 'X-Title'       => config('app.name'),
-            ])->timeout(60)->post("{$this->baseUrl}/chat/completions", [
+            ])
+            ->timeout(60)
+            ->withOptions(['verify' => base_path('cacert.pem'),  // ← ПРАВИЛЬНО ДЛЯ Laravel Http
+            ])
+            ->post("{$this->baseUrl}/chat/completions", [
                 'model'    => $this->model,
                 'messages' => $messages,
             ]);
