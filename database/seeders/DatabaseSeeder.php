@@ -10,6 +10,10 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             SubscriptionPlanSeeder::class,
+            UserSeeder::class,
+            SubscriptionSeeder::class,
+            ChatSeeder::class,
+            MessageSeeder::class,
         ]);
     }
 }
