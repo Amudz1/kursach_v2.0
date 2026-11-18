@@ -1,12 +1,15 @@
 using AiAssistant.Application.Common;
 using AiAssistant.Application.Billing;
+using AiAssistant.Application.Chats;
+using AiAssistant.Application.Files;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Domain;
 using MediatR;
 
 namespace AiAssistant.Application.Auth;
 
-public sealed class AccountHandlers(IAssistantData data, IPasswordService passwords, TimeProvider clock, IUsageLimitService usage) :
+public sealed class AccountHandlers(IAssistantData data, IPasswordService passwords, TimeProvider clock,
+    IUsageLimitService usage, AttachmentLifecycle attachments, GenerationStops stops) :
     IRequestHandler<GetAccount, Result<AccountView>>,
     IRequestHandler<ChangeEmail, Result<Unit>>,
     IRequestHandler<ChangePassword, Result<Unit>>,
@@ -58,12 +61,25 @@ public sealed class AccountHandlers(IAssistantData data, IPasswordService passwo
         }, cancellationToken);
     }
 
-    public Task<Result<Unit>> Handle(DeleteAccount request, CancellationToken cancellationToken) =>
-        ForVerifiedAccountAsync(request.UserId, request.Password, (user, _) =>
+    public async Task<Result<Unit>> Handle(DeleteAccount request, CancellationToken cancellationToken)
+    {
+        List<string> keys = [];
+        List<Guid> generations = [];
+        var result = await ForVerifiedAccountAsync(request.UserId, request.Password, async (user, ct) =>
         {
+            keys = await data.ListAsync(attachments.KeysFor(user.Id), ct);
+            generations = await data.ListAsync(
+                from message in data.Query<Message>()
+                join chat in data.Query<Chat>() on message.ChatId equals chat.Id
+                where chat.UserId == user.Id && message.Status == GenerationStatus.Streaming
+                select message.Id, ct);
             data.Remove(user);
-            return Task.CompletedTask;
         }, cancellationToken);
+        if (!result.IsSuccess) return result;
+        foreach (var id in generations) await stops.StopAsync(id);
+        attachments.Delete(keys);
+        return result;
+    }
 
     private Task<Result<Unit>> ForVerifiedAccountAsync(Guid userId, string password,
         Func<User, CancellationToken, Task> update, CancellationToken cancellationToken) =>

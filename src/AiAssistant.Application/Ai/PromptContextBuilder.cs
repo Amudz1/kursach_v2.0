@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using AiAssistant.Application.Files;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Application.Personalization;
 using AiAssistant.Domain;
@@ -13,7 +14,8 @@ public interface IPromptContextBuilder
     Task<AiRequest> BuildAsync(Guid userId, Guid chatId, Guid assistantId, CancellationToken cancellationToken);
 }
 
-public sealed partial class PromptContextBuilder(IAssistantData data, PersonaAccess personas, AiDefaults defaults) : IPromptContextBuilder
+public sealed partial class PromptContextBuilder(IAssistantData data, PersonaAccess personas, AiDefaults defaults,
+    IAttachmentStorage storage) : IPromptContextBuilder
 {
     private const int MessageOverhead = 12;
     private const int LatestMessages = 60;
@@ -43,11 +45,11 @@ public sealed partial class PromptContextBuilder(IAssistantData data, PersonaAcc
         remaining -= Cost(system);
         var preferences = Truncate(ProfileBlock(profile), remaining / 3);
         remaining -= Cost(preferences);
-        var currentText = Truncate(current.Content, remaining);
-        remaining -= Cost(currentText);
+        var currentMessage = await IncludeAttachmentsAsync(current, model, remaining, cancellationToken);
+        remaining -= Cost(currentMessage.Content);
 
         var prompt = new List<AiMessage> { new("system", system), new("user", preferences) };
-        var memory = await MemoryBlockAsync(userId, currentText, cancellationToken);
+        var memory = await MemoryBlockAsync(userId, current.Content, cancellationToken);
         AddOptional(prompt, memory, 1400, ref remaining);
         var chat = await data.FirstAsync(data.Query<Chat>().Where(item => item.Id == chatId && item.UserId == userId), cancellationToken);
         if (chat?.SummaryUntilMessageId is { } boundaryId && chat.Summary is not null)
@@ -63,7 +65,7 @@ public sealed partial class PromptContextBuilder(IAssistantData data, PersonaAcc
             }
         }
         prompt.AddRange(await ReadHistoryAsync(query, current, remaining, cancellationToken));
-        prompt.Add(new("user", currentText));
+        prompt.Add(currentMessage);
         return new(model, prompt, persona?.Temperature ?? 0.5, outputTokens);
     }
 

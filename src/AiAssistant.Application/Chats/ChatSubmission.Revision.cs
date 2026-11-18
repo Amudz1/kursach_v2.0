@@ -41,7 +41,9 @@ public sealed partial class ChatSubmission
 
             var persona = await personas.ResolveAsync(request.UserId, chat.PersonaId, ct);
             var plan = await plans.ResolveAsync(request.UserId, ct);
-            var model = SelectModel(plan, persona, null);
+            var needsVision = await data.AnyAsync(data.Query<Attachment>().Where(file => file.MessageId == user.Id &&
+                file.ContentType.StartsWith("image/")), ct);
+            var model = SelectModel(plan, persona, assistant?.Model, needsVision) ?? SelectModel(plan, persona, null, needsVision);
             if (model is null)
                 return Result<Guid>.Fail(ErrorKind.Forbidden, "model_not_allowed", "Модель недоступна на вашем тарифе.");
             var now = clock.GetUtcNow();

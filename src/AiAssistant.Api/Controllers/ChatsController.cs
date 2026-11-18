@@ -1,4 +1,7 @@
+using System.Text.Json;
 using AiAssistant.Application.Chats;
+using AiAssistant.Application.Common;
+using AiAssistant.Application.Files;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -38,14 +41,46 @@ public sealed class ChatsController(ISender sender) : ApplicationController
 
     [HttpPost("{chatId:guid}/messages")]
     [EnableRateLimiting("chat")]
-    public async Task<IActionResult> Send(Guid chatId, SendBody body, CancellationToken cancellationToken)
+    [Consumes("application/json", "multipart/form-data")]
+    [RequestSizeLimit(17 * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 16 * 1024 * 1024)]
+    public async Task<IActionResult> Send(Guid chatId, CancellationToken cancellationToken)
     {
-        var result = await sender.Send(new SendChatMessage(CurrentUserId, chatId, body.RequestId ?? Guid.NewGuid(),
-            body.Content, body.Model), cancellationToken);
-        return result.IsSuccess ? Accepted(new { id = result.Value }) : Failure(result.Error!);
+        var files = new List<IncomingAttachment>();
+        try
+        {
+            SendBody? body;
+            if (Request.HasFormContentType)
+            {
+                var form = await Request.ReadFormAsync(cancellationToken);
+                var requestId = form["requestId"].ToString();
+                if (form.Files.Count > 4 || (requestId.Length > 0 && !Guid.TryParse(requestId, out _)))
+                    return Failure(new(ErrorKind.Validation, "invalid_upload", "Проверьте параметры и количество вложений."));
+                body = new(form["content"], Guid.TryParse(requestId, out var parsedId) ? parsedId : null, form["model"]);
+                foreach (var file in form.Files)
+                    files.Add(new(file.FileName, file.Length, file.OpenReadStream()));
+            }
+            else
+            {
+                body = await Request.ReadFromJsonAsync<SendBody>(cancellationToken);
+            }
+            if (body is null)
+                return Failure(new(ErrorKind.Validation, "invalid_message", "Введите сообщение или добавьте вложение."));
+            var result = await sender.Send(new SendChatMessage(CurrentUserId, chatId, body.RequestId ?? Guid.NewGuid(),
+                body.Content ?? "", string.IsNullOrWhiteSpace(body.Model) ? null : body.Model, files), cancellationToken);
+            return result.IsSuccess ? Accepted(new { id = result.Value }) : Failure(result.Error!);
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidDataException)
+        {
+            return Failure(new(ErrorKind.Validation, "invalid_message", "Не удалось разобрать сообщение или вложение."));
+        }
+        finally
+        {
+            foreach (var file in files) await file.Content.DisposeAsync();
+        }
     }
 
     public sealed record CreateBody(Guid? PersonaId);
     public sealed record PatchBody(string? Title, bool? IsPinned, Guid? PersonaId);
-    public sealed record SendBody(string Content, Guid? RequestId, string? Model);
+    public sealed record SendBody(string? Content, Guid? RequestId, string? Model);
 }

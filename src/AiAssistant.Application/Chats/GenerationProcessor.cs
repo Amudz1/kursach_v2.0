@@ -71,7 +71,10 @@ public sealed class GenerationProcessor(IAssistantData data, IAiProvider provide
             var request = await context.BuildAsync(item.UserId, item.ChatId, item.MessageId, timeout.Token);
             var message = await FindAsync(item.MessageId, true, timeout.Token);
             if (message is null) return;
-            message.ContextSnapshot = JsonSerializer.Serialize(request.Messages);
+            message.ContextSnapshot = JsonSerializer.Serialize(request.Messages.Select(item => new
+            {
+                item.Role, item.Content, Images = item.Images?.Select(image => new { image.FileName, image.ContentType })
+            }));
             await data.SaveAsync(timeout.Token);
             await events.StartedAsync(item.UserId, item.ChatId, item.MessageId, timeout.Token);
             await foreach (var chunk in provider.StreamAsync(request, timeout.Token).WithCancellation(timeout.Token))

@@ -15,7 +15,7 @@ public sealed partial class OpenRouterProvider
             Content = JsonContent.Create(new
             {
                 model = request.Model,
-                messages = request.Messages.Select(item => new { role = item.Role, content = item.Content }),
+                messages = request.Messages.Select(WireMessage),
                 temperature = request.Temperature,
                 max_tokens = request.MaxTokens,
                 stream = true,

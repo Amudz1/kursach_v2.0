@@ -1,4 +1,5 @@
 using AiAssistant.Application.Common;
+using AiAssistant.Application.Files;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Domain;
 using MediatR;
@@ -54,12 +55,16 @@ public sealed class ChatReadHandlers(IAssistantData data, ChatAccess access) :
         var ids = messages.Select(message => message.Id).ToArray();
         var feedback = (await data.ListAsync(data.Query<MessageFeedback>().Where(item => item.UserId == request.UserId &&
             ids.Contains(item.MessageId)), cancellationToken)).ToDictionary(item => item.MessageId);
+        var attachments = (await data.ListAsync(data.Query<Attachment>().Where(item => ids.Contains(item.MessageId)),
+            cancellationToken)).ToLookup(item => item.MessageId,
+                item => new AttachmentView(item.Id, item.FileName, item.ContentType, item.Size));
         var items = messages.Take(request.Limit).Reverse().Select(message =>
-            ToView(message, feedback.GetValueOrDefault(message.Id))).ToArray();
+            ToView(message, feedback.GetValueOrDefault(message.Id), attachments[message.Id].ToArray())).ToArray();
         return Result<MessagePage>.Ok(new(items, messages.Count > request.Limit ? items[0].Id : null));
     }
 
-    public static MessageView ToView(Message message, MessageFeedback? feedback = null) => new(message.Id, message.Role.ToString().ToLowerInvariant(),
+    public static MessageView ToView(Message message, MessageFeedback? feedback = null,
+        IReadOnlyList<AttachmentView>? attachments = null) => new(message.Id, message.Role.ToString().ToLowerInvariant(),
         message.Content, message.Status.ToString().ToLowerInvariant(), message.Model, message.ErrorCode,
-        message.Suggestions, message.CreatedAt, message.TriggerMessageId, feedback?.Rating, feedback?.Reason);
+        message.Suggestions, message.CreatedAt, message.TriggerMessageId, feedback?.Rating, feedback?.Reason, attachments);
 }

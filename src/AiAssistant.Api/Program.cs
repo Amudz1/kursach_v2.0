@@ -5,10 +5,12 @@ using AiAssistant.Application.Ai;
 using AiAssistant.Application.Auth;
 using AiAssistant.Application.Billing;
 using AiAssistant.Application.Chats;
+using AiAssistant.Application.Files;
 using AiAssistant.Application.Memory;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Application.Personalization;
 using AiAssistant.Infrastructure.Persistence;
+using AiAssistant.Infrastructure.Files;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,6 +21,11 @@ builder.Services.AddAssistantAuth(builder.Configuration, builder.Environment);
 builder.Services.AddAssistantAi(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<ChatAccess>();
 builder.Services.AddScoped<ChatSubmission>();
+builder.Services.AddSingleton(new AttachmentRoot(Path.GetFullPath(
+    builder.Configuration["Files:Directory"] ?? ".local/attachments", builder.Environment.ContentRootPath)));
+builder.Services.AddSingleton<IAttachmentStorage, LocalAttachmentStorage>();
+builder.Services.AddScoped<AttachmentLifecycle>();
+builder.Services.AddHostedService<AttachmentCleanupWorker>();
 builder.Services.AddScoped<PlanAccess>();
 builder.Services.AddScoped<IUsageLimitService, UsageLimitService>();
 builder.Services.AddScoped<PersonaAccess>();

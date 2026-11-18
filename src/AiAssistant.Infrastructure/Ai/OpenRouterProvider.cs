@@ -38,10 +38,18 @@ public sealed partial class OpenRouterProvider(HttpClient client) : IAiProvider
     private static object Payload(AiRequest request) => new
     {
         model = request.Model,
-        messages = request.Messages.Select(message => new { role = message.Role, content = message.Content }),
+        messages = request.Messages.Select(WireMessage),
         temperature = request.Temperature,
         max_tokens = request.MaxTokens
     };
+
+    private static object WireMessage(AiMessage message)
+    {
+        if (message.Images is not { Count: > 0 }) return new { role = message.Role, content = message.Content };
+        var content = new List<object> { new { type = "text", text = message.Content } };
+        content.AddRange(message.Images.Select(image => new { type = "image_url", image_url = new { url = image.DataUrl } }));
+        return new { role = message.Role, content };
+    }
 
     private static AiUsage? ReadUsage(JsonElement root)
     {
