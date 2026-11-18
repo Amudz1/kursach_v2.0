@@ -16,4 +16,8 @@ public sealed class PersonalizationController(ISender sender) : ApplicationContr
     [HttpPut]
     public async Task<IActionResult> Save(ProfileView body, CancellationToken cancellationToken) =>
         NoContentFrom(await sender.Send(new SaveProfile(CurrentUserId, body), cancellationToken));
+
+    [HttpPost("preview")]
+    public async Task<IActionResult> Preview(PreviewProfile body, CancellationToken cancellationToken) =>
+        From(await sender.Send(body, cancellationToken));
 }

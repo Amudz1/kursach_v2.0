@@ -1,8 +1,28 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { expertiseOptions, formatOptions, labelFor, languageOptions, lengthOptions, toneOptions } from '../profile-options'
-import type { Profile } from '../types'
+import { computed, ref, watch } from 'vue'
+import { api, explain } from '../api'
+import { expertiseOptions, formatOptions, labelFor, languageOptions, lengthOptions, taskOptions, toneOptions } from '../profile-options'
+import type { Profile, ResponseDecision } from '../types'
 const props = defineProps<{ profile: Profile }>()
+const sample = ref('')
+const decision = ref<ResponseDecision>()
+const error = ref('')
+const busy = ref(false)
+let revision = 0
+watch(() => props.profile, () => { revision++; decision.value = undefined }, { deep: true, flush: 'sync' })
+watch(sample, () => { revision++; decision.value = undefined }, { flush: 'sync' })
+
+async function inspect() {
+  if (!sample.value.trim()) return
+  const requested = revision
+  error.value = ''; busy.value = true
+  try {
+    const profile = { ...props.profile, interests: props.profile.interests.map((item) => item.trim()).filter(Boolean) }
+    const result = await api<ResponseDecision>('/me/personalization/preview', { method: 'POST', body: { profile, sample: sample.value } })
+    if (requested === revision) decision.value = result
+  } catch (reason) { error.value = explain(reason) }
+  finally { busy.value = false }
+}
 
 const examples = computed(() => {
   const { language, tone, expertiseLevel, responseLength, responseFormat } = props.profile
@@ -41,5 +61,16 @@ const examples = computed(() => {
         <pre v-if="examples.format === 'code'"><code>var books = new List&lt;string&gt;();</code></pre>
       </template>
     </div>
+    <form class="policy-preview stack" @submit.prevent="inspect">
+      <label>Пример запроса <input v-model="sample" maxlength="400" placeholder="Проверь мою функцию на C#"></label>
+      <button class="secondary self-start" type="submit" :disabled="busy || !sample.trim()">Проверить правила</button>
+      <p v-if="error" class="notice danger" role="alert">{{ error }}</p>
+      <div v-if="decision" class="policy-result" role="status">
+        <strong>{{ taskOptions[decision.task] }}</strong>
+        <span>{{ labelFor(lengthOptions, decision.length) }} · {{ labelFor(formatOptions, decision.format) }}</span>
+        <p v-if="decision.rule">{{ decision.rule }}</p>
+        <p v-if="decision.instructions">{{ decision.instructions }}</p>
+      </div>
+    </form>
   </aside>
 </template>

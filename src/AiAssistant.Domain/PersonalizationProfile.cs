@@ -11,6 +11,10 @@ public sealed class PersonalizationProfile
     public string About { get; set; } = "";
     public string[] Interests { get; set; } = [];
     public bool AutoMemoryEnabled { get; set; }
+    public bool AdaptToTask { get; set; } = true;
+    public bool UseMemoryInReplies { get; set; } = true;
+    public string Goal { get; set; } = "";
+    public string TaskRulesJson { get; set; } = "[]";
     public bool OnboardingCompleted { get; set; }
     public Guid? AdaptationAcknowledgedFor { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

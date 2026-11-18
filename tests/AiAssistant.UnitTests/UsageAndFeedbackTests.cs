@@ -19,20 +19,27 @@ public sealed class UsageAndFeedbackTests
         var data = new MemoryData();
         var now = new FixedClock(Reference);
         var user = Guid.NewGuid();
-        data.Add(new SubscriptionPlan { Code = "Free", Name = "Free", AllowedModels = ["test"], DailyRequestLimit = 1 });
+        data.Add(new SubscriptionPlan { Code = "Free", Name = "Free", AllowedModels = ["test"], DailyTokenLimit = 2200 });
         var limits = new UsageLimitService(data, new PlanAccess(data, now), now);
         var ct = CancellationToken.None;
-        Assert.Equal(1, (await limits.ReadAsync(user, ct)).RemainingPrompts);
+        Assert.Equal(2200, (await limits.ReadAsync(user, ct)).RemainingTokens);
         Assert.Empty(data.Query<UsageCounter>());
-        Assert.True(await limits.ReserveAsync(user, 1, now.Now, ct));
-        Assert.False(await limits.ReserveAsync(user, 1, now.Now, ct));
-        await limits.FinishAsync(user, now.Now, true, 42, ct);
-        Assert.True(await limits.ReserveAsync(user, 1, now.Now, ct));
-        Assert.Equal(0, (await limits.ReadAsync(user, ct)).RemainingPrompts);
+        Assert.True(await limits.EnqueueAsync(user, 2200, now.Now, ct));
+        var chat = new Chat { UserId = user };
+        data.Add(chat);
+        var pending = new Message { ChatId = chat.Id, Role = MessageRole.Assistant, Content = "",
+            CreatedAt = now.Now, ReservedTokens = 1600 };
+        data.Add(pending);
+        Assert.False(await limits.EnqueueAsync(user, 2200, now.Now, ct));
+        Assert.Equal(1600, (await limits.ReadAsync(user, ct)).ReservedTokens);
+        pending.ReservedTokens = 0;
+        await limits.FinishAsync(user, now.Now, false, 1450, ct);
+        Assert.False(await limits.EnqueueAsync(user, 2200, now.Now, ct));
+        Assert.Equal(750, (await limits.ReadAsync(user, ct)).RemainingTokens);
         now.Now = Reference.AddSeconds(1);
-        Assert.Equal(1, (await limits.ReadAsync(user, ct)).RemainingPrompts);
-        Assert.True(await limits.ReserveAsync(user, 1, now.Now, ct));
-        Assert.Equal([42L, 0L], data.Query<UsageCounter>().OrderBy(item => item.Date).Select(item => item.TokensUsed).ToArray());
+        Assert.Equal(2200, (await limits.ReadAsync(user, ct)).RemainingTokens);
+        Assert.True(await limits.EnqueueAsync(user, 2200, now.Now, ct));
+        Assert.Equal([1450L, 0L], data.Query<UsageCounter>().OrderBy(item => item.Date).Select(item => item.TokensUsed).ToArray());
         Assert.Equal(0, data.Saves);
     }
 
@@ -42,18 +49,20 @@ public sealed class UsageAndFeedbackTests
         var data = new MemoryData();
         var clock = new FixedClock(Reference);
         var user = Guid.NewGuid();
-        var paid = new SubscriptionPlan { Code = "Pro", Name = "Unlimited", DailyRequestLimit = null };
+        var paid = new SubscriptionPlan { Code = "Pro", Name = "Unlimited", DailyTokenLimit = null };
         data.Add(paid);
-        data.Add(new SubscriptionPlan { Code = "Free", Name = "Free", DailyRequestLimit = 1 });
+        data.Add(new SubscriptionPlan { Code = "Free", Name = "Free", DailyTokenLimit = 1 });
         data.Add(new Subscription { PlanId = paid.Id, UserId = user, StartsAt = Reference.AddDays(-1), EndsAt = Reference.AddDays(1) });
         var limits = new UsageLimitService(data, new PlanAccess(data, clock), clock);
         var ct = CancellationToken.None;
-        Assert.True(await limits.ReserveAsync(user, null, Reference, ct));
-        Assert.True(await limits.ReserveAsync(user, null, Reference, ct));
+        Assert.True(await limits.EnqueueAsync(user, null, Reference, ct));
+        Assert.True(await limits.EnqueueAsync(user, null, Reference, ct));
+        await limits.FinishAsync(user, Reference, false, 125, ct);
         var active = await limits.ReadAsync(user, ct);
         Assert.Equal("Pro", active.PlanCode);
-        Assert.Null(active.RemainingPrompts);
-        Assert.Equal(2, active.UsedToday);
+        Assert.Null(active.RemainingTokens);
+        Assert.Equal(125, active.UsedTokensToday);
+        Assert.Equal(2, active.RequestsToday);
         clock.Now = Reference.AddDays(1);
         Assert.Equal("Free", (await limits.ReadAsync(user, ct)).PlanCode);
     }

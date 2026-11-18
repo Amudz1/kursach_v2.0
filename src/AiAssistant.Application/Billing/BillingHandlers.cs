@@ -6,7 +6,7 @@ using MediatR;
 namespace AiAssistant.Application.Billing;
 
 public sealed record PlanView(Guid Id, string Code, string Name, string Description, decimal Price, int DurationDays,
-    int? DailyRequestLimit, int MaxPersonas, int MaxMemories, int MaxAttachmentBytes, string[] AllowedModels);
+    long? DailyTokenLimit, int MaxPersonas, int MaxMemories, int MaxAttachmentBytes, string[] AllowedModels);
 public sealed record ListPlans : IRequest<Result<IReadOnlyList<PlanView>>>;
 public sealed record PurchasePlan(Guid UserId, Guid PlanId, Guid RequestId, string CardNumber, string CardHolder,
     string ExpireMonth, string ExpireYear, string Cvv) : IRequest<Result<Guid>>;
@@ -18,7 +18,7 @@ public sealed class BillingHandlers(IAssistantData data, SubscriptionWriter subs
     {
         var plans = await data.ListAsync(data.Query<SubscriptionPlan>().Where(plan => plan.IsActive)
             .OrderBy(plan => plan.SortOrder).ThenBy(plan => plan.Code).Select(plan => new PlanView(plan.Id, plan.Code, plan.Name,
-                plan.Description, plan.Price, plan.DurationDays, plan.DailyRequestLimit, plan.MaxPersonas, plan.MaxMemories,
+                plan.Description, plan.Price, plan.DurationDays, plan.DailyTokenLimit, plan.MaxPersonas, plan.MaxMemories,
                 plan.MaxAttachmentBytes, plan.AllowedModels)), cancellationToken);
         return Result<IReadOnlyList<PlanView>>.Ok(plans);
     }

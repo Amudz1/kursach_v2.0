@@ -80,8 +80,8 @@ async function remove() {
         <h2>Аккаунт</h2>
         <dl v-if="session.account" class="context-list">
           <div><dt>Тариф</dt><dd>{{ session.account.usage.planName }}</dd></div>
-          <div><dt>Запросов сегодня</dt><dd>{{ session.account.usage.usedToday }}</dd></div>
-          <div><dt>Остаток</dt><dd>{{ session.account.usage.remainingPrompts ?? 'Безлимит' }}</dd></div>
+          <div><dt>Токенов использовано</dt><dd>{{ session.account.usage.usedTokensToday.toLocaleString('ru-RU') }}</dd></div>
+          <div><dt>Токенов доступно</dt><dd>{{ session.account.usage.remainingTokens?.toLocaleString('ru-RU') ?? 'Безлимит' }}</dd></div>
         </dl>
         <RouterLink class="text-button" to="/plans">Сравнить тарифы ↗</RouterLink>
         <button class="secondary" @click="logout">Выйти</button>

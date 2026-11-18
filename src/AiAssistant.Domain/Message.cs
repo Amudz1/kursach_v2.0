@@ -13,6 +13,7 @@ public sealed class Message
     public string? Model { get; init; }
     public int? PromptTokens { get; set; }
     public int? CompletionTokens { get; set; }
+    public int ReservedTokens { get; set; }
     public string? ContextSnapshot { get; set; }
     public string[] Suggestions { get; set; } = [];
     public string? ErrorCode { get; set; }

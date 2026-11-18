@@ -174,6 +174,10 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("request_id");
 
+                    b.Property<int>("ReservedTokens")
+                        .HasColumnType("integer")
+                        .HasColumnName("reserved_tokens");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -374,6 +378,12 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("about");
 
+                    b.Property<bool>("AdaptToTask")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("adapt_to_task");
+
                     b.Property<Guid?>("AdaptationAcknowledgedFor")
                         .HasColumnType("uuid")
                         .HasColumnName("adaptation_acknowledged_for");
@@ -387,6 +397,14 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("expertise_level");
+
+                    b.Property<string>("Goal")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasDefaultValue("")
+                        .HasColumnName("goal");
 
                     b.PrimitiveCollection<string[]>("Interests")
                         .IsRequired()
@@ -415,6 +433,13 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("response_length");
 
+                    b.Property<string>("TaskRulesJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("[]")
+                        .HasColumnName("task_rules_json");
+
                     b.Property<string>("Tone")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -424,6 +449,12 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
+
+                    b.Property<bool>("UseMemoryInReplies")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("use_memory_in_replies");
 
                     b.HasKey("UserId");
 
@@ -527,9 +558,9 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("code");
 
-                    b.Property<int?>("DailyRequestLimit")
-                        .HasColumnType("integer")
-                        .HasColumnName("daily_request_limit");
+                    b.Property<long?>("DailyTokenLimit")
+                        .HasColumnType("bigint")
+                        .HasColumnName("daily_token_limit");
 
                     b.Property<string>("Description")
                         .IsRequired()
@@ -579,7 +610,7 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
 
                     b.ToTable("subscription_plans", null, t =>
                         {
-                            t.HasCheckConstraint("ck_subscription_plans_limits", "price >= 0 AND duration_days >= 0 AND (daily_request_limit IS NULL OR daily_request_limit >= 0) AND max_personas >= 0 AND max_memories >= 0 AND max_attachment_bytes >= 0");
+                            t.HasCheckConstraint("ck_subscription_plans_limits", "price >= 0 AND duration_days >= 0 AND (daily_token_limit IS NULL OR daily_token_limit >= 0) AND max_personas >= 0 AND max_memories >= 0 AND max_attachment_bytes >= 0");
                         });
 
                     b.HasData(
@@ -588,7 +619,7 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                             Id = new Guid("f2000000-0000-4000-8000-000000000001"),
                             AllowedModels = "[\"deepseek/deepseek-chat\"]",
                             Code = "Free",
-                            DailyRequestLimit = 12,
+                            DailyTokenLimit = 24576L,
                             Description = "Свободный доступ",
                             DurationDays = 0,
                             IsActive = true,
@@ -604,7 +635,7 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                             Id = new Guid("f2000000-0000-4000-8000-000000000002"),
                             AllowedModels = "[\"deepseek/deepseek-chat\",\"openai/gpt-4o-mini\"]",
                             Code = "Student",
-                            DailyRequestLimit = 60,
+                            DailyTokenLimit = 122880L,
                             Description = "Для учёбы",
                             DurationDays = 30,
                             IsActive = true,
@@ -620,7 +651,7 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                             Id = new Guid("f2000000-0000-4000-8000-000000000003"),
                             AllowedModels = "[\"deepseek/deepseek-chat\",\"openai/gpt-4o-mini\"]",
                             Code = "Pro",
-                            DailyRequestLimit = 250,
+                            DailyTokenLimit = 512000L,
                             Description = "Для регулярной работы",
                             DurationDays = 30,
                             IsActive = true,

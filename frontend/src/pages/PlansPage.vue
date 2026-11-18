@@ -48,7 +48,7 @@ onMounted(load)
 
 <template>
   <section class="page">
-    <header class="page-heading"><h1>Тарифы</h1><p>Сравните дневной лимит, доступные модели и объём памяти.</p></header>
+    <header class="page-heading"><h1>Тарифы</h1><p>Сравните дневной бюджет токенов, доступные модели и объём памяти.</p></header>
     <p v-if="error" class="notice danger" role="alert">{{ error }} <button class="text-button" @click="load">Повторить</button></p>
     <p v-if="status" class="notice success" role="status">{{ status }}</p>
     <p v-if="loading" class="muted" role="status">Загружаем тарифы…</p>
@@ -58,7 +58,7 @@ onMounted(load)
         <h2>{{ plan.name }}</h2>
         <p class="price">{{ currency.format(plan.price) }} <span v-if="plan.durationDays">/ {{ plan.durationDays }} дн.</span></p>
         <dl class="context-list">
-          <div><dt>Запросы в день</dt><dd>{{ plan.dailyRequestLimit ?? 'Безлимит' }}</dd></div>
+          <div><dt>Токены в день</dt><dd>{{ plan.dailyTokenLimit?.toLocaleString('ru-RU') ?? 'Безлимит' }}</dd></div>
           <div><dt>Свои персоны</dt><dd>{{ plan.maxPersonas }}</dd></div>
           <div><dt>Факты памяти</dt><dd>{{ plan.maxMemories }}</dd></div>
           <div><dt>Вложения</dt><dd>{{ Math.round(plan.maxAttachmentBytes / 1048576) }} МБ</dd></div>

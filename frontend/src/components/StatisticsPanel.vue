@@ -4,8 +4,8 @@ import type { Statistics } from '../types'
 const props = defineProps<{ data: Statistics; admin?: boolean }>()
 const number = new Intl.NumberFormat('ru')
 const percent = new Intl.NumberFormat('ru', { style: 'percent', maximumFractionDigits: 0 })
-const attention = computed(() => props.admin ? 'Активных пользователей' : 'Остаток сегодня')
-const activity = computed(() => props.admin ? number.format(props.data.activeUsers) : props.data.usage?.remainingPrompts ?? '∞')
+const attention = computed(() => props.admin ? 'Активных пользователей' : 'Токенов доступно сегодня')
+const activity = computed(() => props.admin ? number.format(props.data.activeUsers) : props.data.usage?.remainingTokens ?? '∞')
 </script>
 
 <template>

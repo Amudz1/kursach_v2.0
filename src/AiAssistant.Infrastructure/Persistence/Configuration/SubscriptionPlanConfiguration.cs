@@ -17,7 +17,7 @@ internal sealed class SubscriptionPlanConfiguration : IEntityTypeConfiguration<S
         entity.Property(plan => plan.AllowedModels).HasColumnType("jsonb");
         entity.HasIndex(plan => plan.Code).IsUnique();
         entity.ToTable(table => table.HasCheckConstraint("ck_subscription_plans_limits",
-            "price >= 0 AND duration_days >= 0 AND (daily_request_limit IS NULL OR daily_request_limit >= 0) " +
+            "price >= 0 AND duration_days >= 0 AND (daily_token_limit IS NULL OR daily_token_limit >= 0) " +
             "AND max_personas >= 0 AND max_memories >= 0 AND max_attachment_bytes >= 0"));
         entity.HasData(ReferenceData.Plans);
     }

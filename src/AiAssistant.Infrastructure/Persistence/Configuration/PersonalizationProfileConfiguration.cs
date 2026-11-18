@@ -16,6 +16,10 @@ internal sealed class PersonalizationProfileConfiguration : IEntityTypeConfigura
         entity.Property(profile => profile.ExpertiseLevel).HasMaxLength(20);
         entity.Property(profile => profile.ResponseFormat).HasMaxLength(20);
         entity.Property(profile => profile.ResponseLength).HasMaxLength(20);
+        entity.Property(profile => profile.AdaptToTask).HasDefaultValue(true).HasSentinel(true);
+        entity.Property(profile => profile.UseMemoryInReplies).HasDefaultValue(true).HasSentinel(true);
+        entity.Property(profile => profile.Goal).HasMaxLength(300).HasDefaultValue("");
+        entity.Property(profile => profile.TaskRulesJson).HasColumnType("jsonb").HasDefaultValue("[]");
         entity.HasOne<User>().WithOne().HasForeignKey<PersonalizationProfile>(profile => profile.UserId)
             .OnDelete(DeleteBehavior.Cascade);
     }

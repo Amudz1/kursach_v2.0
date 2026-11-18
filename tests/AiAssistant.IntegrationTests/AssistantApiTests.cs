@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using AiAssistant.Application.Personalization;
 using Xunit;
 
 namespace AiAssistant.IntegrationTests;
@@ -63,7 +64,15 @@ public sealed class AssistantApiTests(ApiFixture fixture) : IClassFixture<ApiFix
         Assert.Equal(2, history.GetArrayLength());
         Assert.Equal("user", history[0].GetProperty("role").GetString());
         Assert.Equal("assistant", history[1].GetProperty("role").GetString());
-        Assert.Contains("Демонстрационный", history[1].GetProperty("content").GetString());
+        var answer = history[1].GetProperty("content").GetString()!;
+        Assert.Contains("Демонстрационный", answer);
+        using var account = await owner.GetAsync("/api/v1/me");
+        var usage = (await BodyAsync(account)).GetProperty("usage");
+        var expectedTokens = input.Content.Length / 4 + answer.Length / 4;
+        Assert.Equal(expectedTokens, usage.GetProperty("usedTokensToday").GetInt64());
+        Assert.Equal(0, usage.GetProperty("reservedTokens").GetInt64());
+        Assert.Equal(usage.GetProperty("dailyTokenLimit").GetInt64() - expectedTokens,
+            usage.GetProperty("remainingTokens").GetInt64());
         using var page = await owner.GetAsync(path + "?limit=1");
         var cursor = (await BodyAsync(page)).GetProperty("nextBefore").GetGuid();
         using var previous = await owner.GetAsync(path + $"?limit=1&before={cursor}");
@@ -75,6 +84,21 @@ public sealed class AssistantApiTests(ApiFixture fixture) : IClassFixture<ApiFix
         Assert.Equal(HttpStatusCode.NoContent, savedRating.StatusCode);
         using var stats = await owner.GetAsync("/api/v1/me/stats");
         Assert.Equal(1, (await BodyAsync(stats)).GetProperty("requests").GetInt32());
+
+        var profile = (await owner.GetFromJsonAsync<ProfileView>("/api/v1/me/personalization"))! with
+        {
+            AdaptToTask = true, UseMemoryInReplies = false, Goal = "Подготовить диплом",
+            TaskRules = [new("code", "short", "code", "Проверяй границы.")]
+        };
+        using var preferences = await owner.PutAsJsonAsync("/api/v1/me/personalization", profile);
+        Assert.Equal(HttpStatusCode.NoContent, preferences.StatusCode);
+        var saved = (await owner.GetFromJsonAsync<ProfileView>("/api/v1/me/personalization"))!;
+        Assert.False(saved.UseMemoryInReplies);
+        Assert.Equal(profile.TaskRules, saved.TaskRules);
+        using var preview = await owner.PostAsJsonAsync("/api/v1/me/personalization/preview",
+            new PreviewProfile(saved, "Проверь функцию на C#"));
+        Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+        Assert.Equal("short", (await BodyAsync(preview)).GetProperty("length").GetString());
     }
 
     [Fact]

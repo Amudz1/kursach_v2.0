@@ -20,8 +20,7 @@ public sealed class ChatWriteHandlers(IAssistantData data, ChatAccess access, Pe
             var now = clock.GetUtcNow();
             if (request.PersonaId is { } personaId && await personas.FindAsync(request.UserId, personaId, ct) is null)
                 return Result<Guid>.Fail(ErrorKind.NotFound, "persona_not_found", "Персона недоступна.");
-            var persona = await personas.ResolveAsync(request.UserId, request.PersonaId, ct);
-            var chat = new Chat { UserId = request.UserId, PersonaId = persona?.Id, CreatedAt = now, LastMessageAt = now };
+            var chat = new Chat { UserId = request.UserId, PersonaId = request.PersonaId, CreatedAt = now, LastMessageAt = now };
             data.Add(chat);
             await data.SaveAsync(ct);
             return Result<Guid>.Ok(chat.Id);

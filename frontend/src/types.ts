@@ -1,9 +1,11 @@
 export type Usage = {
   planCode: string
   planName: string
-  dailyLimit: number | null
-  usedToday: number
-  remainingPrompts: number | null
+  dailyTokenLimit: number | null
+  usedTokensToday: number
+  reservedTokens: number
+  requestsToday: number
+  remainingTokens: number | null
 }
 
 export type Statistics = { days: number; requests: number; activeUsers: number; promptTokens: number; completionTokens: number
@@ -32,7 +34,15 @@ export type Profile = {
   about: string
   autoMemoryEnabled: boolean
   onboardingCompleted: boolean
+  adaptToTask: boolean
+  useMemoryInReplies: boolean
+  goal: string
+  taskRules: TaskPreference[]
 }
+
+export type TaskMode = 'general' | 'code' | 'learn' | 'write' | 'plan'
+export type TaskPreference = { task: TaskMode; length: string | null; format: string | null; instructions: string | null }
+export type ResponseDecision = { task: TaskMode; length: string; format: string; fromHistory: boolean; rule: string | null; instructions: string | null }
 
 export type PersonaInput = { name: string; description: string; instructions: string; temperature: number }
 export type Persona = PersonaInput & { id: string; model: string | null; isCustom: boolean }
@@ -58,6 +68,6 @@ export type Memory = { id: string; content: string; source: 'manual' | 'auto'; i
 export type Adaptation = { feedbackId: string; currentLength: string; proposedLength: string }
 export type Plan = {
   id: string; code: string; name: string; description: string; price: number; durationDays: number
-  dailyRequestLimit: number | null; maxPersonas: number; maxMemories: number
+  dailyTokenLimit: number | null; maxPersonas: number; maxMemories: number
   maxAttachmentBytes: number; allowedModels: string[]
 }

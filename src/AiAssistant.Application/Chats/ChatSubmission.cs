@@ -40,14 +40,14 @@ public sealed partial class ChatSubmission(IAssistantData data, ChatAccess acces
 
             if (!await data.AnyAsync(messages, ct) && chat.Title == "Новый чат") chat.Title = Title(text);
             var now = clock.GetUtcNow();
-            var persona = await personas.ResolveAsync(request.UserId, chat.PersonaId, ct);
+            var persona = chat.PersonaId is { } personaId ? await personas.FindAsync(request.UserId, personaId, ct) : null;
             var plan = await plans.ResolveAsync(request.UserId, ct);
             if (files.Sum(file => (long)file.Bytes.Length) > plan.MaxAttachmentBytes)
                 return FileLimit();
             var model = SelectModel(plan, persona, request.Model, files.Any(file => file.IsImage));
             if (model is null)
                 return Result<QueuedMessage>.Fail(ErrorKind.Forbidden, "model_not_allowed", "Модель недоступна на вашем тарифе.");
-            if (!await usage.ReserveAsync(request.UserId, plan.DailyRequestLimit, now.AddMicroseconds(1), ct))
+            if (!await usage.EnqueueAsync(request.UserId, plan.DailyTokenLimit, now.AddMicroseconds(1), ct))
                 return LimitReached<QueuedMessage>();
             var userMessage = new Message { ChatId = chat.Id, Role = MessageRole.User, Content = text, CreatedAt = now };
             var assistant = new Message
@@ -110,8 +110,8 @@ public sealed partial class ChatSubmission(IAssistantData data, ChatAccess acces
         return desired is null ? allowed.FirstOrDefault() : null;
     }
 
-    private static Result<T> LimitReached<T>() => Result<T>.Fail(ErrorKind.Limit, "daily_limit",
-        "Дневной лимит запросов исчерпан. Лимит обновится в полночь UTC.");
+    private static Result<T> LimitReached<T>() => Result<T>.Fail(ErrorKind.Limit, "daily_token_limit",
+        "Дневной лимит токенов исчерпан. Баланс обновится в полночь UTC.");
 
     private static string Title(string content)
     {

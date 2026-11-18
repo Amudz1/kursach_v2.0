@@ -26,14 +26,14 @@ const newPersona = (): AdminPersona['settings'] => ({
   profile: { name: '', description: '', instructions: '', temperature: 0.5 }, model: '', isActive: true,
 })
 const newPlan = (): AdminPlan['settings'] => ({
-  code: '', name: '', description: '', price: 0, durationDays: 30, dailyRequestLimit: 12,
+  code: '', name: '', description: '', price: 0, durationDays: 30, dailyTokenLimit: null,
   maxPersonas: 1, maxMemories: 20, maxAttachmentBytes: 2097152,
   allowedModels: ['deepseek/deepseek-chat'], sortOrder: 10, isActive: true,
 })
 const personaForm = ref(newPersona())
 const planForm = ref(newPlan())
 const modelInput = ref('deepseek/deepseek-chat')
-const dailyInput = ref('12')
+const dailyInput = ref('')
 const personaId = ref('')
 const planId = ref('')
 const contextId = ref('')
@@ -72,13 +72,13 @@ function editPlan(item?: AdminPlan) {
   planId.value = item?.id ?? ''
   planForm.value = item ? { ...item.settings } : newPlan()
   modelInput.value = planForm.value.allowedModels.join(', ')
-  dailyInput.value = planForm.value.dailyRequestLimit === null ? '' : String(planForm.value.dailyRequestLimit)
+  dailyInput.value = planForm.value.dailyTokenLimit === null ? '' : String(planForm.value.dailyTokenLimit)
 }
 async function saveCatalog(collection: 'personas' | 'plans') {
   const persona = collection === 'personas'
   const id = persona ? personaId.value : planId.value
   const body = persona ? personaForm.value : { ...planForm.value,
-    dailyRequestLimit: dailyInput.value.trim() === '' ? null : Number(dailyInput.value),
+    dailyTokenLimit: dailyInput.value.trim() === '' ? null : Number(dailyInput.value),
     allowedModels: modelInput.value.split(',').map((model) => model.trim()).filter(Boolean),
   }
   saving.value = true; success.value = ''; error.value = ''
@@ -186,7 +186,7 @@ async function readContext() {
           <label>Название <input v-model="planForm.name" maxlength="100" required></label>
           <label>Цена, ₽ <input v-model.number="planForm.price" type="number" min="0" step="0.01" required></label>
           <label>Дней <input v-model.number="planForm.durationDays" type="number" min="0" max="3650" required></label>
-          <label>Запросов в день <input v-model="dailyInput" type="number" min="0" placeholder="Безлимит"></label>
+          <label>Токенов в день <input v-model="dailyInput" type="number" min="0" max="1000000000" placeholder="Безлимит"></label>
           <label>Макс. персон <input v-model.number="planForm.maxPersonas" type="number" min="0" max="1000" required></label>
           <label>Макс. фактов <input v-model.number="planForm.maxMemories" type="number" min="0" max="1000" required></label>
           <label>Вложения, байт <input v-model.number="planForm.maxAttachmentBytes" type="number" min="0" max="16777216" required></label>

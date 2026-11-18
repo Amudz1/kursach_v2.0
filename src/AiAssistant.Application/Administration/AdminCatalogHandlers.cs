@@ -9,7 +9,7 @@ namespace AiAssistant.Application.Administration;
 public sealed record AdminPersonaInput(PersonaInput Profile, string? Model, bool IsActive);
 public sealed record AdminPersonaItem(Guid Id, AdminPersonaInput Settings);
 public sealed record AdminPlanInput(string Code, string Name, string Description, decimal Price, int DurationDays,
-    int? DailyRequestLimit, int MaxPersonas, int MaxMemories, int MaxAttachmentBytes, string[] AllowedModels,
+    long? DailyTokenLimit, int MaxPersonas, int MaxMemories, int MaxAttachmentBytes, string[] AllowedModels,
     int SortOrder, bool IsActive);
 public sealed record AdminPlanItem(Guid Id, AdminPlanInput Settings);
 public sealed record ListAdminPersonas(Guid AdminId) : IRequest<Result<IReadOnlyList<AdminPersonaItem>>>;
@@ -79,7 +79,7 @@ public sealed class AdminCatalogHandlers(IAssistantData data, AdminAccess access
         if (!await access.AllowedAsync(request.AdminId, cancellationToken)) return AdminAccess.Denied<IReadOnlyList<AdminPlanItem>>();
         var items = await data.ListAsync(data.Query<SubscriptionPlan>().OrderBy(plan => plan.SortOrder)
             .ThenBy(plan => plan.Code).Select(plan => new AdminPlanItem(plan.Id, new(plan.Code, plan.Name, plan.Description,
-                plan.Price, plan.DurationDays, plan.DailyRequestLimit, plan.MaxPersonas, plan.MaxMemories,
+                plan.Price, plan.DurationDays, plan.DailyTokenLimit, plan.MaxPersonas, plan.MaxMemories,
                 plan.MaxAttachmentBytes, plan.AllowedModels, plan.SortOrder, plan.IsActive))), cancellationToken);
         return Result<IReadOnlyList<AdminPlanItem>>.Ok(items);
     }
@@ -142,7 +142,7 @@ public sealed class AdminCatalogHandlers(IAssistantData data, AdminAccess access
     {
         if (input.Code.Length is < 2 or > 20 || !input.Code.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_') ||
             input.Name.Trim().Length is < 1 or > 100 || input.Description.Length > 500 ||
-            input.Price is < 0 or > 1_000_000 || input.DurationDays is < 0 or > 3650 || input.DailyRequestLimit is < 0 or > 100_000 ||
+            input.Price is < 0 or > 1_000_000 || input.DurationDays is < 0 or > 3650 || input.DailyTokenLimit is < 0 or > 1_000_000_000 ||
             input.MaxPersonas is < 0 or > 1000 || input.MaxMemories is < 0 or > 1000 || input.MaxAttachmentBytes is < 0 or > 16 * 1024 * 1024 ||
             input.AllowedModels.Length is < 1 or > 20 ||
             input.AllowedModels.Any(model => string.IsNullOrWhiteSpace(model) || model.Length > 160 || model.Any(char.IsWhiteSpace)))
@@ -156,7 +156,7 @@ public sealed class AdminCatalogHandlers(IAssistantData data, AdminAccess access
         plan.Description = input.Description.Trim();
         plan.Price = input.Price;
         plan.DurationDays = input.DurationDays;
-        plan.DailyRequestLimit = input.DailyRequestLimit;
+        plan.DailyTokenLimit = input.DailyTokenLimit;
         plan.MaxPersonas = input.MaxPersonas;
         plan.MaxMemories = input.MaxMemories;
         plan.MaxAttachmentBytes = input.MaxAttachmentBytes;

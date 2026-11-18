@@ -18,7 +18,7 @@ public sealed class GenerationProcessor(IAssistantData data, IAiProvider provide
             join chat in data.Query<Chat>() on message.ChatId equals chat.Id
             where message.Role == MessageRole.Assistant && message.Status == GenerationStatus.Pending
             orderby message.CreatedAt, message.Id
-            select new WorkItem(message.Id, chat.Id, chat.UserId),
+            select new WorkItem(message.Id, chat.Id, chat.UserId, message.CreatedAt),
             cancellationToken);
         if (next is null) return false;
 
@@ -39,11 +39,15 @@ public sealed class GenerationProcessor(IAssistantData data, IAiProvider provide
     public async Task RecoverAsync(CancellationToken cancellationToken)
     {
         var interrupted = await data.ListAsync(data.Query<Message>(true)
-            .Where(message => message.Status == GenerationStatus.Streaming), cancellationToken);
+            .Where(message => message.Status == GenerationStatus.Streaming || message.ReservedTokens > 0), cancellationToken);
         foreach (var message in interrupted)
         {
-            message.Status = GenerationStatus.Failed;
-            message.ErrorCode = "generation_interrupted";
+            message.ReservedTokens = 0;
+            if (message.Status == GenerationStatus.Streaming)
+            {
+                message.Status = GenerationStatus.Failed;
+                message.ErrorCode = "generation_interrupted";
+            }
         }
         if (interrupted.Count > 0) await data.SaveAsync(cancellationToken);
     }
@@ -64,18 +68,19 @@ public sealed class GenerationProcessor(IAssistantData data, IAiProvider provide
         timeout.CancelAfter(TimeSpan.FromSeconds(90));
         var text = new StringBuilder();
         AiUsage? usage = null;
+        AiRequest? admitted = null;
         string? error = null;
         var status = GenerationStatus.Completed;
         try
         {
-            var request = await context.BuildAsync(item.UserId, item.ChatId, item.MessageId, timeout.Token);
-            var message = await FindAsync(item.MessageId, true, timeout.Token);
-            if (message is null) return;
-            message.ContextSnapshot = JsonSerializer.Serialize(request.Messages.Select(item => new
+            var available = await limits.RemainingAsync(item.UserId, item.StartedAt, timeout.Token);
+            var request = await context.BuildAsync(item.UserId, item.ChatId, item.MessageId, timeout.Token, available);
+            if (!await ReserveTokensAsync(item, request, timeout.Token))
             {
-                item.Role, item.Content, Images = item.Images?.Select(image => new { image.FileName, image.ContentType })
-            }));
-            await data.SaveAsync(timeout.Token);
+                timeout.Token.ThrowIfCancellationRequested();
+                throw new AiProviderException("generation_interrupted", "Генерация больше не активна.");
+            }
+            admitted = request;
             await events.StartedAsync(item.UserId, item.ChatId, item.MessageId, timeout.Token);
             await foreach (var chunk in provider.StreamAsync(request, timeout.Token).WithCancellation(timeout.Token))
             {
@@ -110,10 +115,33 @@ public sealed class GenerationProcessor(IAssistantData data, IAiProvider provide
         }
 
         using var saveTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var saved = await FinalizeAsync(item, text.ToString(), usage, status, error, saveTimeout.Token);
+        var content = text.ToString();
+        if (usage is null && admitted is not null && content.Length > 0)
+            usage = new(PromptContextBuilder.EstimateInput(admitted),
+                Math.Min(admitted.MaxTokens, PromptContextBuilder.Cost(content)));
+        var saved = await FinalizeAsync(item, content, usage, status, error, saveTimeout.Token);
         if (saved is not null && !serviceToken.IsCancellationRequested)
             await events.FinishedAsync(item.UserId, item.ChatId, saved, usage, serviceToken);
     }
+
+    private Task<bool> ReserveTokensAsync(WorkItem item, AiRequest request, CancellationToken cancellationToken) =>
+        data.ForUserAsync(item.UserId, async ct =>
+        {
+            var current = await FindAsync(item.MessageId, false, ct);
+            if (current?.Status != GenerationStatus.Streaming) return false;
+            var cost = PromptContextBuilder.EstimateInput(request) + request.MaxTokens;
+            var available = await limits.RemainingAsync(item.UserId, item.StartedAt, ct);
+            if (available.HasValue && cost > available.Value) throw PromptContextBuilder.TokenLimit();
+            var message = await FindAsync(item.MessageId, true, ct);
+            if (message is null) return false;
+            message.ReservedTokens = cost;
+            message.ContextSnapshot = JsonSerializer.Serialize(request.Messages.Select(entry => new
+            {
+                entry.Role, entry.Content, Images = entry.Images?.Select(image => new { image.FileName, image.ContentType })
+            }));
+            await data.SaveAsync(ct);
+            return true;
+        }, cancellationToken);
 
     private Task<MessageView?> FinalizeAsync(WorkItem item, string content, AiUsage? usage, GenerationStatus status,
         string? error, CancellationToken cancellationToken) =>
@@ -121,7 +149,13 @@ public sealed class GenerationProcessor(IAssistantData data, IAiProvider provide
         {
             // The current state might have changed in a different request while the provider was streaming.
             var current = await FindAsync(item.MessageId, false, ct);
-            if (current is null) return null;
+            var consumed = (long)(usage?.PromptTokens ?? 0) + (usage?.CompletionTokens ?? 0);
+            if (current is null)
+            {
+                await limits.FinishAsync(item.UserId, item.StartedAt, consumed == 0, consumed, ct);
+                await data.SaveAsync(ct);
+                return null;
+            }
             var message = await FindAsync(item.MessageId, true, ct);
             if (message is null) return null;
             message.Status = current.Status is GenerationStatus.Stopped or GenerationStatus.Superseded ? current.Status : status;
@@ -129,8 +163,8 @@ public sealed class GenerationProcessor(IAssistantData data, IAiProvider provide
             message.ErrorCode = message.Status == GenerationStatus.Failed ? error : null;
             message.PromptTokens = usage?.PromptTokens;
             message.CompletionTokens = usage?.CompletionTokens;
-            await limits.FinishAsync(item.UserId, message.CreatedAt, content.Length == 0 && status != GenerationStatus.Completed,
-                (long)(usage?.PromptTokens ?? 0) + (usage?.CompletionTokens ?? 0), ct);
+            message.ReservedTokens = 0;
+            await limits.FinishAsync(item.UserId, message.CreatedAt, consumed == 0 && status != GenerationStatus.Completed, consumed, ct);
             await data.SaveAsync(ct);
             return message.Status == GenerationStatus.Superseded ? null : ChatReadHandlers.ToView(message);
         }, cancellationToken);
@@ -138,5 +172,5 @@ public sealed class GenerationProcessor(IAssistantData data, IAiProvider provide
     private Task<Message?> FindAsync(Guid id, bool tracked, CancellationToken cancellationToken) =>
         data.FirstAsync(data.Query<Message>(tracked).Where(message => message.Id == id), cancellationToken);
 
-    private sealed record WorkItem(Guid MessageId, Guid ChatId, Guid UserId);
+    private sealed record WorkItem(Guid MessageId, Guid ChatId, Guid UserId, DateTimeOffset StartedAt);
 }

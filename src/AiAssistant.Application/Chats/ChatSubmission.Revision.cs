@@ -39,7 +39,7 @@ public sealed partial class ChatSubmission
                 chat.SummaryUntilMessageId = null;
             }
 
-            var persona = await personas.ResolveAsync(request.UserId, chat.PersonaId, ct);
+            var persona = chat.PersonaId is { } personaId ? await personas.FindAsync(request.UserId, personaId, ct) : null;
             var plan = await plans.ResolveAsync(request.UserId, ct);
             var needsVision = await data.AnyAsync(data.Query<Attachment>().Where(file => file.MessageId == user.Id &&
                 file.ContentType.StartsWith("image/")), ct);
@@ -47,7 +47,7 @@ public sealed partial class ChatSubmission
             if (model is null)
                 return Result<Guid>.Fail(ErrorKind.Forbidden, "model_not_allowed", "Модель недоступна на вашем тарифе.");
             var now = clock.GetUtcNow();
-            if (!await usage.ReserveAsync(request.UserId, plan.DailyRequestLimit, now, ct))
+            if (!await usage.EnqueueAsync(request.UserId, plan.DailyTokenLimit, now, ct))
                 return LimitReached<Guid>();
             var answer = new Message
             {

@@ -3,7 +3,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { HubConnectionBuilder, HubConnectionState, type HubConnection } from '@microsoft/signalr'
 import { api, apiResponse, explain } from './api'
 import { useSession } from './session'
-import type { Adaptation, Attachment, Chat, Message, MessagePage, Page, Persona, Plan, Profile } from './types'
+import type { Adaptation, Attachment, Chat, Message, MessagePage, Page, Plan } from './types'
 
 const terminal = (message: Message) => message.status !== 'pending' && message.status !== 'streaming'
 
@@ -15,11 +15,8 @@ export function useChat() {
   const chats = ref<Chat[]>([])
   const messages = ref<Message[]>([])
   const selected = computed(() => chats.value.find((chat) => chat.id === selectedId.value))
-  const personas = ref<Persona[]>([])
-  const profile = ref<Profile>()
   const plans = ref<Plan[]>([])
   const currentPlan = computed(() => plans.value.find((plan) => plan.code === session.account?.usage.planCode))
-  const personaId = ref('')
   const model = ref('')
   const search = ref('')
   const nextBefore = ref<string | null>(null)
@@ -163,7 +160,7 @@ export function useChat() {
   }
 
   async function create() {
-    const result = await api<{ id: string }>('/chats', { method: 'POST', body: { personaId: personaId.value || null } })
+    const result = await api<{ id: string }>('/chats', { method: 'POST' })
     await loadChats()
     await router.push(`/chats/${result.id}`)
     return result.id
@@ -174,13 +171,7 @@ export function useChat() {
     try { await create() } catch (reason) { error.value = explain(reason) }
   }
 
-  async function changePersona(value: string) {
-    personaId.value = value
-    if (!selectedId.value || !value) return
-    await patch({ personaId: value })
-  }
-
-  async function patch(body: Partial<Pick<Chat, 'title' | 'isPinned' | 'personaId'>>) {
+  async function patch(body: Partial<Pick<Chat, 'title' | 'isPinned'>>) {
     const id = selectedId.value
     if (!id) return false
     error.value = ''
@@ -279,7 +270,6 @@ export function useChat() {
     try {
       await api<void>('/me/personalization/adaptation', { method: 'POST', body: { feedbackId: adaptation.value.feedbackId, apply } })
       adaptation.value = undefined
-      if (apply) profile.value = await api<Profile>('/me/personalization')
     } catch (reason) { error.value = explain(reason); await readAdaptation() }
   }
 
@@ -297,12 +287,10 @@ export function useChat() {
     linked.value = false; gap = false; nextBefore.value = null; messages.value = []; error.value = ''
     requestSignal?.abort()
     if (!id) return
-    personaId.value = selected.value?.personaId ?? personas.value[0]?.id ?? ''
     loading.value = true
     await Promise.all([loadMessages(true), ensureHub()])
     if (id === selectedId.value) loading.value = false
   }, { immediate: true })
-  watch(selected, (chat) => { if (chat?.personaId) personaId.value = chat.personaId })
   onMounted(async () => {
     timer = setInterval(() => {
       if (flow.value && (!linked.value || gap)) void loadMessages()
@@ -310,8 +298,6 @@ export function useChat() {
     }, 1500)
     try {
       await Promise.all([loadChats(), readAdaptation(),
-        api<Persona[]>('/personas').then((items) => { personas.value = items; if (!personaId.value) personaId.value = items[0]?.id ?? '' }),
-        api<Profile>('/me/personalization').then((value) => { profile.value = value }),
         api<Plan[]>('/plans', { auth: false }).then((value) => { plans.value = value })])
     } catch (reason) { error.value = explain(reason) }
   })
@@ -320,8 +306,8 @@ export function useChat() {
     void hub.value?.stop()
   })
 
-  return { session, chats, messages, selectedId, selected, personaId, personas, profile, model, currentPlan, search,
+  return { chats, messages, selectedId, selected, model, currentPlan, search,
     nextBefore, chatsHaveMore, draft, files, busy, loading, error, linked, flow, lastUser, lastAnswer, adaptation, transcript,
-    loadChats, loadMessages, newChat, changePersona, patch, remove, changeDraft, chooseFiles, removeFile, send, stop,
+    loadChats, loadMessages, newChat, patch, remove, changeDraft, chooseFiles, removeFile, send, stop,
     revise, rate, decide, download }
 }

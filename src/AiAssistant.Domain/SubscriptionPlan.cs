@@ -8,7 +8,7 @@ public sealed class SubscriptionPlan
     public string Description { get; set; } = "";
     public decimal Price { get; set; }
     public int DurationDays { get; set; }
-    public int? DailyRequestLimit { get; set; }
+    public long? DailyTokenLimit { get; set; }
     public int MaxPersonas { get; set; }
     public int MaxMemories { get; set; }
     public int MaxAttachmentBytes { get; set; }

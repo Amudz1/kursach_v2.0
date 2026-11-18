@@ -23,9 +23,9 @@ internal static class ReferenceData
 
     public static SubscriptionPlan[] Plans =>
     [
-        Plan(1, "Free", "Свободный доступ", 0, 0, 12, 1, 20, 2, [TextModel]),
-        Plan(2, "Student", "Для учёбы", 199, 30, 60, 5, 100, 6, [TextModel, VisionModel]),
-        Plan(3, "Pro", "Для регулярной работы", 399, 30, 250, 15, 300, 10, [TextModel, VisionModel]),
+        Plan(1, "Free", "Свободный доступ", 0, 0, 24576, 1, 20, 2, [TextModel]),
+        Plan(2, "Student", "Для учёбы", 199, 30, 122880, 5, 100, 6, [TextModel, VisionModel]),
+        Plan(3, "Pro", "Для регулярной работы", 399, 30, 512000, 15, 300, 10, [TextModel, VisionModel]),
         Plan(4, "Premium", "Без дневного лимита", 699, 30, null, 30, 1000, 16, [TextModel, VisionModel])
     ];
 
@@ -40,7 +40,7 @@ internal static class ReferenceData
     };
 
     private static SubscriptionPlan Plan(int number, string code, string name, decimal price, int duration,
-        int? dailyLimit, int personas, int memories, int attachmentMiB, string[] models) => new()
+        long? dailyLimit, int personas, int memories, int attachmentMiB, string[] models) => new()
     {
         Id = Guid.Parse($"f2000000-0000-4000-8000-{number:D12}"),
         Code = code,
@@ -48,7 +48,7 @@ internal static class ReferenceData
         Description = name,
         Price = price,
         DurationDays = duration,
-        DailyRequestLimit = dailyLimit,
+        DailyTokenLimit = dailyLimit,
         MaxPersonas = personas,
         MaxMemories = memories,
         MaxAttachmentBytes = attachmentMiB * 1024 * 1024,

@@ -1,19 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useChat } from '../use-chat'
 import { markdown } from '../markdown'
-import { expertiseOptions, labelFor, languageOptions, lengthOptions, toneOptions } from '../profile-options'
 import type { Message } from '../types'
 
 const {
-  session, chats, messages, selected, selectedId, personaId, personas, profile, model, currentPlan, search, nextBefore,
+  chats, messages, selected, selectedId, model, currentPlan, search, nextBefore,
   chatsHaveMore, draft, files, busy, loading, error, linked, flow, lastUser, lastAnswer, adaptation, transcript,
-  loadChats, loadMessages, newChat, changePersona, patch, remove, changeDraft, chooseFiles, removeFile, send, stop, revise, rate,
+  loadChats, loadMessages, newChat, patch, remove, changeDraft, chooseFiles, removeFile, send, stop, revise, rate,
   decide, download,
 } = useChat()
-const activePersona = computed(() => personas.value.find((persona) => persona.id === personaId.value))
-const usage = computed(() => session.account?.usage)
 const drawer = ref<HTMLDetailsElement>()
 const picker = ref<HTMLInputElement>()
 const dialog = ref<HTMLDialogElement>()
@@ -22,12 +19,14 @@ const modalText = ref('')
 const copied = ref('')
 const feedbackTarget = ref('')
 const composer = ref<HTMLTextAreaElement>()
-const defaultIdeas = ['Разбери эту тему по шагам', 'Проверь мой текст', 'Помоги составить план работы']
+const chatMenu = ref<HTMLDetailsElement>()
+const defaultIdeas = ['Объясни идею на простом примере', 'Помоги улучшить мой текст', 'Разложи задачу на шаги']
 const reasons = { too_long: 'Слишком длинно', too_complex: 'Слишком сложно', inaccurate: 'Неточно', wrong_language: 'Не тот язык' }
 const failureMessages: Record<string, string> = {
   ai_timeout: 'Модель не успела ответить.', ai_empty: 'Модель вернула пустой ответ.',
   ai_credentials: 'Сервис модели отклонил ключ.', ai_rate_limit: 'Сервис модели ограничил запросы.',
   generation_interrupted: 'Генерация прервалась после перезапуска.', ai_incomplete: 'Поток ответа оборвался.',
+  daily_token_limit: 'Для этого сообщения не хватает токенов. Сократите запрос или проверьте бюджет на странице тарифов.',
 }
 const formTitle = computed(() => ({ rename: 'Переименовать диалог', delete: 'Удалить диалог?', edit: 'Изменить сообщение' })[operation.value])
 
@@ -36,6 +35,7 @@ function setComposer(text: string) {
   composer.value?.focus()
 }
 function showDialog(type: typeof operation.value) {
+  if (chatMenu.value) chatMenu.value.open = false
   operation.value = type
   modalText.value = type === 'rename' ? selected.value?.title ?? '' : lastUser.value?.content ?? ''
   dialog.value?.showModal()
@@ -66,7 +66,29 @@ function time(value: string) {
 function closeMobileHistory() {
   if (window.matchMedia('(max-width: 780px)').matches && drawer.value) drawer.value.open = false
 }
-onMounted(closeMobileHistory)
+function resizeComposer() {
+  const input = composer.value
+  if (!input) return
+  input.style.height = '0px'
+  const css = getComputedStyle(input)
+  input.style.height = `${Math.min(parseFloat(css.maxHeight), Math.max(parseFloat(css.minHeight), input.scrollHeight))}px`
+}
+
+let sizeObserver: ResizeObserver | undefined
+watch(draft, resizeComposer, { flush: 'post' })
+onMounted(() => {
+  closeMobileHistory()
+  resizeComposer()
+  if (!composer.value) return
+  let previousWidth = composer.value.clientWidth
+  sizeObserver = new ResizeObserver(() => {
+    if (!composer.value || composer.value.clientWidth === previousWidth) return
+    previousWidth = composer.value.clientWidth
+    resizeComposer()
+  })
+  sizeObserver.observe(composer.value)
+})
+onUnmounted(() => sizeObserver?.disconnect())
 </script>
 
 <template>
@@ -97,21 +119,28 @@ onMounted(closeMobileHistory)
           <h1>{{ selected?.title ?? (selectedId ? 'Диалог' : 'Новый диалог') }}</h1>
           <p v-if="selectedId" class="status-line"><span :class="{ online: linked }"></span>{{ linked ? 'Подключено' : 'Подключаемся к чату' }}</p>
         </div>
-        <div v-if="selectedId" class="chat-actions">
-          <button class="text-button" @click="patch({ isPinned: !selected?.isPinned })">{{ selected?.isPinned ? 'Открепить' : 'Закрепить' }}</button>
-          <button class="text-button" @click="showDialog('rename')">Переименовать</button>
-          <button class="text-button danger-text" @click="showDialog('delete')">Удалить</button>
-        </div>
+        <details ref="chatMenu" class="chat-menu">
+          <summary aria-label="Настройки диалога">•••</summary>
+          <div class="chat-menu-panel">
+            <label>Модель <select :value="model" aria-label="Модель" @change="setModel">
+              <option value="">Автоматически</option><option v-for="allowed in currentPlan?.allowedModels" :key="allowed" :value="allowed">{{ allowed }}</option>
+            </select></label>
+            <template v-if="selectedId">
+              <button class="text-button" @click="patch({ isPinned: !selected?.isPinned })">{{ selected?.isPinned ? 'Открепить' : 'Закрепить' }}</button>
+              <button class="text-button" @click="showDialog('rename')">Переименовать</button>
+              <button class="text-button danger-text" @click="showDialog('delete')">Удалить</button>
+            </template>
+          </div>
+        </details>
       </header>
 
       <div ref="transcript" class="transcript" aria-label="Сообщения">
         <p v-if="loading && !messages.length" class="muted" role="status">Загружаем сообщения…</p>
         <button v-if="nextBefore" class="plain-button" @click="loadMessages(false, true)">Загрузить ранние сообщения</button>
         <div v-if="!loading && !messages.length" class="start-conversation">
-          <div aria-hidden="true" class="start-symbol">↳</div>
+          <span class="brand-mark start-mark" aria-hidden="true">b<span>.</span></span>
           <h2>С чего начнём?</h2>
-          <p>{{ activePersona?.description || 'Отправьте вопрос или приложите файл.' }}</p>
-          <div class="start-choices"><button v-for="idea in defaultIdeas" :key="idea" class="secondary" @click="setComposer(idea)">{{ idea }}</button></div>
+          <div class="start-choices"><button v-for="idea in defaultIdeas" :key="idea" class="secondary" @click="setComposer(idea)">{{ idea }} <span aria-hidden="true">↗</span></button></div>
         </div>
         <article v-for="item in messages" :key="item.id" class="message" :class="item.role">
           <div class="message-meta">
@@ -156,49 +185,21 @@ onMounted(closeMobileHistory)
           <button class="text-button" @click="decide(false)">Скрыть</button>
         </div>
         <form class="composer" @submit.prevent="send">
+          <input ref="picker" class="sr-only" type="file" tabindex="-1" aria-label="Выбор файла" multiple accept=".txt,.md,.pdf,.docx,.png,.jpg,.jpeg" @change="addedFiles">
+          <button type="button" class="composer-attach" aria-label="Прикрепить" title="Прикрепить" @click="picker?.click()"><span aria-hidden="true">+</span></button>
           <label class="sr-only" for="composer">Сообщение для Budz</label>
-          <textarea id="composer" ref="composer" :value="draft" placeholder="Сообщение для Budz…" rows="2" maxlength="10000"
+          <textarea id="composer" ref="composer" :value="draft" placeholder="Сообщение для Budz…" rows="1" maxlength="10000"
             @input="changeDraft(($event.target as HTMLTextAreaElement).value)" @keydown.ctrl.enter.prevent="send"></textarea>
+          <button v-if="flow" type="button" class="primary composer-action stop-button" aria-label="Остановить" title="Остановить" @click="stop"><span aria-hidden="true">■</span></button>
+          <button v-else type="submit" class="primary composer-action" aria-label="Отправить" title="Отправить" :disabled="busy || (!draft.trim() && !files.length)"><span aria-hidden="true">↑</span></button>
           <ul v-if="files.length" class="file-list picked">
             <li v-for="(file, index) in files" :key="`${file.name}-${index}`">
               <span>{{ file.name }}</span><button class="text-button" type="button" :aria-label="`Удалить ${file.name}`" @click="removeFile(index)">×</button>
             </li>
           </ul>
-          <div class="composer-tools">
-            <div class="compose-options">
-              <label><span>Персона</span><select :value="personaId" aria-label="Текущая персона" @change="changePersona(($event.target as HTMLSelectElement).value)">
-                <option v-if="!personaId" value="">По умолчанию</option><option v-for="persona in personas" :key="persona.id" :value="persona.id">{{ persona.name }}</option>
-              </select></label>
-              <label><span>Модель</span><select :value="model" aria-label="Модель" @change="setModel">
-                <option value="">Автоматически</option><option v-for="allowed in currentPlan?.allowedModels" :key="allowed" :value="allowed">{{ allowed }}</option>
-              </select></label>
-            </div>
-            <div class="compose-actions">
-              <input ref="picker" class="sr-only" type="file" tabindex="-1" aria-label="Выбор файла" multiple accept=".txt,.md,.pdf,.docx,.png,.jpg,.jpeg" @change="addedFiles">
-              <button type="button" class="secondary" @click="picker?.click()">Прикрепить</button>
-              <button v-if="flow" type="button" class="primary stop-button" @click="stop">Остановить</button>
-              <button v-else type="submit" class="primary" :disabled="busy || (!draft.trim() && !files.length)">Отправить <span aria-hidden="true">↗</span></button>
-            </div>
-          </div>
         </form>
       </div>
     </div>
-
-    <aside class="chat-context" aria-label="Параметры диалога">
-      <div class="context-heading"><span class="preview-symbol" aria-hidden="true">↳</span><h2>Параметры диалога</h2></div>
-      <div class="context-persona"><strong>{{ activePersona?.name ?? 'Универсальный помощник' }}</strong><p v-if="activePersona?.description">{{ activePersona.description }}</p></div>
-      <dl v-if="profile" class="context-list">
-        <div><dt>Язык</dt><dd>{{ labelFor(languageOptions, profile.language) }}</dd></div>
-        <div><dt>Тон</dt><dd>{{ labelFor(toneOptions, profile.tone) }}</dd></div>
-        <div><dt>Уровень</dt><dd>{{ labelFor(expertiseOptions, profile.expertiseLevel) }}</dd></div>
-        <div><dt>Длина</dt><dd>{{ labelFor(lengthOptions, profile.responseLength) }}</dd></div>
-      </dl>
-      <RouterLink class="text-button" to="/personalization">Изменить настройки ↗</RouterLink>
-      <div v-if="usage" class="context-usage"><strong>{{ usage.remainingPrompts ?? '∞' }}</strong>
-        <span>{{ usage.remainingPrompts === null ? 'Без дневного лимита' : 'Запросов осталось сегодня' }}</span>
-        <RouterLink class="text-button" to="/plans">{{ usage.planName }} ↗</RouterLink>
-      </div>
-    </aside>
 
     <dialog ref="dialog" aria-labelledby="chat-dialog-title">
       <form class="stack" @submit.prevent="applyDialog">
