@@ -30,10 +30,18 @@ services:
     volumes:
       - attachment-data:/app/attachments
     ports:
-      - "127.0.0.1:${API_PORT:-8080}:8080"
+      - "127.0.0.1:${API_PORT:-8081}:8080"
     depends_on:
       db:
         condition: service_healthy
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
+    depends_on:
+      - api
 
 volumes:
   postgres-data:
