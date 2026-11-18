@@ -9,16 +9,18 @@ using Microsoft.Extensions.Logging;
 namespace AiAssistant.Application.Chats;
 
 public sealed class GenerationProcessor(IAssistantData data, IAiProvider provider, GenerationStops stops,
-    IGenerationEvents events, IPromptContextBuilder context, IUsageLimitService limits, ILogger<GenerationProcessor> logger)
+    IGenerationEvents events, IPromptContextBuilder context, IUsageLimitService limits, ILogger<GenerationProcessor> logger, TimeProvider clock)
 {
     public async Task<bool> ProcessNextAsync(CancellationToken cancellationToken)
     {
+        var now = clock.GetUtcNow();
         var next = await data.FirstAsync(
             from message in data.Query<Message>()
             join chat in data.Query<Chat>() on message.ChatId equals chat.Id
-            where message.Role == MessageRole.Assistant && message.Status == GenerationStatus.Pending
+            where message.Role == MessageRole.Assistant && message.Status == GenerationStatus.Pending &&
+                  (chat.ExpiresAt == null || chat.ExpiresAt > now)
             orderby message.CreatedAt, message.Id
-            select new WorkItem(message.Id, chat.Id, chat.UserId, message.CreatedAt),
+            select new WorkItem(message.Id, chat.Id, chat.UserId, message.CreatedAt, chat.ExpiresAt.HasValue),
             cancellationToken);
         if (next is null) return false;
 
@@ -135,7 +137,8 @@ public sealed class GenerationProcessor(IAssistantData data, IAiProvider provide
             var message = await FindAsync(item.MessageId, true, ct);
             if (message is null) return false;
             message.ReservedTokens = cost;
-            message.ContextSnapshot = JsonSerializer.Serialize(request.Messages.Select(entry => new
+            message.AppliedRules = request.Rules is null ? null : JsonSerializer.Serialize(request.Rules);
+            if (!item.Temporary) message.ContextSnapshot = JsonSerializer.Serialize(request.Messages.Select(entry => new
             {
                 entry.Role, entry.Content, Images = entry.Images?.Select(image => new { image.FileName, image.ContentType })
             }));
@@ -172,5 +175,5 @@ public sealed class GenerationProcessor(IAssistantData data, IAiProvider provide
     private Task<Message?> FindAsync(Guid id, bool tracked, CancellationToken cancellationToken) =>
         data.FirstAsync(data.Query<Message>(tracked).Where(message => message.Id == id), cancellationToken);
 
-    private sealed record WorkItem(Guid MessageId, Guid ChatId, Guid UserId, DateTimeOffset StartedAt);
+    private sealed record WorkItem(Guid MessageId, Guid ChatId, Guid UserId, DateTimeOffset StartedAt, bool Temporary);
 }

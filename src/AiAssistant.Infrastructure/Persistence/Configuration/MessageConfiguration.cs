@@ -15,6 +15,7 @@ internal sealed class MessageConfiguration : IEntityTypeConfiguration<Message>
         entity.Property(message => message.Model).HasMaxLength(160);
         entity.Property(message => message.ErrorCode).HasMaxLength(80);
         entity.Property(message => message.ContextSnapshot).HasColumnType("jsonb");
+        entity.Property(message => message.AppliedRules).HasColumnType("jsonb");
         entity.HasIndex(message => new { message.ChatId, message.CreatedAt, message.Id }).IsDescending(false, true, true);
         entity.HasIndex(message => new { message.ChatId, message.RequestId }).IsUnique();
         entity.HasIndex(message => message.ChatId, "IX_messages_active_generation").IsUnique()

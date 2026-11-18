@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
+import ChatRulesPanel from '../components/ChatRulesPanel.vue'
 import { useChat } from '../use-chat'
 import { markdown } from '../markdown'
 import type { Message } from '../types'
@@ -8,7 +9,8 @@ import type { Message } from '../types'
 const {
   chats, messages, selected, selectedId, model, currentPlan, search, nextBefore,
   chatsHaveMore, draft, files, busy, loading, error, linked, flow, lastUser, lastAnswer, adaptation, transcript,
-  loadChats, loadMessages, newChat, patch, remove, changeDraft, chooseFiles, removeFile, send, stop, revise, rate,
+  workspaces, workspaceId, workspaceQuery, currentWorkspace,
+  loadChats, loadMessages, newChat, patch, move, switchWorkspace, remove, changeDraft, chooseFiles, removeFile, send, stop, revise, rate,
   decide, download,
 } = useChat()
 const compactLayout = window.matchMedia('(max-width: 780px)')
@@ -29,6 +31,8 @@ const copied = ref('')
 const feedbackTarget = ref('')
 const composer = ref<HTMLTextAreaElement>()
 const chatMenu = ref<HTMLDetailsElement>()
+const rulesPanel = ref<InstanceType<typeof ChatRulesPanel>>()
+const temporary = computed(() => Boolean(selected.value?.expiresAt))
 const defaultIdeas = ['Объясни идею на простом примере', 'Помоги улучшить мой текст', 'Разложи задачу на шаги']
 const reasons = { too_long: 'Слишком длинно', too_complex: 'Слишком сложно', inaccurate: 'Неточно', wrong_language: 'Не тот язык' }
 const failureMessages: Record<string, string> = {
@@ -67,6 +71,12 @@ function addedFiles(event: Event) {
   input.value = ''
 }
 function setModel(event: Event) { model.value = (event.target as HTMLSelectElement).value }
+
+function moveChat(event: Event) {
+  const workspace = (event.target as HTMLSelectElement).value
+  if (chatMenu.value) chatMenu.value.open = false
+  void move(workspace)
+}
 
 function time(value: string) {
   return new Intl.DateTimeFormat('ru', { hour: '2-digit', minute: '2-digit' }).format(new Date(value))
@@ -134,13 +144,19 @@ onUnmounted(() => {
   <section class="workspace" :class="{ 'history-open': historyVisible }" aria-label="Диалоги Budz">
     <aside v-show="historyVisible" id="chat-history" ref="historyPanel" class="history" tabindex="-1" aria-labelledby="history-heading" @keydown.esc.stop="hideHistory">
       <h2 id="history-heading">Диалоги</h2>
+      <label v-if="workspaces.length" class="history-scope">Пространство
+        <select aria-label="Пространство диалогов" :value="workspaceId" @change="switchWorkspace(($event.target as HTMLSelectElement).value)">
+          <option value="">Личные диалоги</option>
+          <option v-for="space in workspaces" :key="space.id" :value="space.id">{{ space.name }}</option>
+        </select>
+      </label>
       <form class="search-form" @submit.prevent="loadChats()">
         <label class="sr-only" for="chat-search">Поиск по диалогам</label>
         <input id="chat-search" v-model="search" type="search" maxlength="120" placeholder="Поиск по диалогам">
         <button class="text-button" type="submit">Найти</button>
       </form>
       <nav aria-label="История диалогов" class="thread-list">
-        <RouterLink v-for="chat in chats" :key="chat.id" :to="`/chats/${chat.id}`" @click="closeMobileHistory">
+        <RouterLink v-for="chat in chats" :key="chat.id" :to="{ path: `/chats/${chat.id}`, query: workspaceQuery }" @click="closeMobileHistory">
           <span v-if="chat.isPinned" class="pin-mark" aria-label="Закреплён">◆</span>
           <span>{{ chat.title }}</span>
         </RouterLink>
@@ -157,8 +173,11 @@ onUnmounted(() => {
         </button>
         <div class="conversation-heading">
           <h1>{{ selected?.title ?? (selectedId ? 'Диалог' : 'Новый диалог') }}</h1>
+          <p v-if="selected?.expiresAt" class="help chat-scope-name" :title="new Date(selected.expiresAt).toLocaleString('ru-RU')">Временный диалог</p>
+          <p v-else-if="currentWorkspace" class="help chat-scope-name">{{ currentWorkspace.name }}</p>
           <p v-if="selectedId" class="status-line"><span :class="{ online: linked }"></span>{{ linked ? 'Подключено' : 'Подключаемся к чату' }}</p>
         </div>
+        <button type="button" class="chat-control chat-rules-button" aria-haspopup="dialog" @click="rulesPanel?.show()">Правила</button>
         <button type="button" class="chat-control new-chat-control" aria-label="Новый диалог" title="Новый диалог" @click="startNewChat"><span aria-hidden="true">+</span></button>
         <details ref="chatMenu" class="chat-menu">
           <summary aria-label="Настройки диалога">•••</summary>
@@ -167,7 +186,14 @@ onUnmounted(() => {
               <option value="">Автоматически</option><option v-for="allowed in currentPlan?.allowedModels" :key="allowed" :value="allowed">{{ allowed }}</option>
             </select></label>
             <template v-if="selectedId">
-              <button class="text-button" @click="patch({ isPinned: !selected?.isPinned })">{{ selected?.isPinned ? 'Открепить' : 'Закрепить' }}</button>
+              <label v-if="!temporary && workspaces.length" :key="workspaceId + ':' + selectedId">Переместить диалог
+                <select :value="workspaceId" aria-label="Переместить диалог" :disabled="!!flow" @change="moveChat">
+                  <option value="">Личные диалоги</option>
+                  <option v-for="space in workspaces" :key="space.id" :value="space.id">{{ space.name }}</option>
+                </select>
+              </label>
+              <RouterLink v-if="!temporary" class="text-button" :to="{ path: '/data', query: { chat: selectedId, ...workspaceQuery } }">Экспорт диалога</RouterLink>
+              <button v-if="!temporary" class="text-button" @click="patch({ isPinned: !selected?.isPinned })">{{ selected?.isPinned ? 'Открепить' : 'Закрепить' }}</button>
               <button class="text-button" @click="showDialog('rename')">Переименовать</button>
               <button class="text-button danger-text" @click="showDialog('delete')">Удалить</button>
             </template>
@@ -200,10 +226,11 @@ onUnmounted(() => {
             </ul>
           </div>
           <div v-if="item.status !== 'pending' && item.status !== 'streaming'" class="message-actions">
+            <button v-if="item.rules" class="text-button" aria-haspopup="dialog" @click="rulesPanel?.show(item.rules)">Правила ответа</button>
             <button v-if="item.content" class="text-button" @click="copy(item)">{{ copied === item.id ? 'Скопировано' : 'Копировать' }}</button>
             <button v-if="item.id === lastUser?.id && !flow" class="text-button" @click="showDialog('edit')">Изменить</button>
             <button v-if="item.id === lastAnswer?.id && !flow" class="text-button" :disabled="busy" @click="revise(item)">Повторить</button>
-            <template v-if="item.role === 'assistant' && item.status === 'completed'">
+            <template v-if="!temporary && item.role === 'assistant' && item.status === 'completed'">
               <button class="text-button" :aria-pressed="item.rating === 1" @click="rate(item, 1)">Полезно</button>
               <button class="text-button" :aria-pressed="item.rating === -1" @click="feedbackTarget = feedbackTarget === item.id ? '' : item.id">Не помогло</button>
             </template>
@@ -220,14 +247,14 @@ onUnmounted(() => {
 
       <div class="composer-wrap">
         <p v-if="error" class="notice danger" role="alert">{{ error }}</p>
-        <div v-if="adaptation" class="notice adaptation" role="status">
+        <div v-if="adaptation && !temporary" class="notice adaptation" role="status">
           <span>Последние оценки предлагают сделать ответы короче.</span>
           <button class="text-button" @click="decide(true)">Применить</button>
           <button class="text-button" @click="decide(false)">Скрыть</button>
         </div>
-        <form class="composer" @submit.prevent="send">
+        <form class="composer" :class="{ 'text-only': temporary }" @submit.prevent="send">
           <input ref="picker" class="sr-only" type="file" tabindex="-1" aria-label="Выбор файла" multiple accept=".txt,.md,.pdf,.docx,.png,.jpg,.jpeg" @change="addedFiles">
-          <button type="button" class="composer-attach" aria-label="Прикрепить" title="Прикрепить" @click="picker?.click()"><span aria-hidden="true">+</span></button>
+          <button v-if="!temporary" type="button" class="composer-attach" aria-label="Прикрепить" title="Прикрепить" @click="picker?.click()"><span aria-hidden="true">+</span></button>
           <label class="sr-only" for="composer">Сообщение для Budz</label>
           <textarea id="composer" ref="composer" :value="draft" placeholder="Сообщение для Budz…" rows="1" maxlength="10000"
             @input="changeDraft(($event.target as HTMLTextAreaElement).value)" @keydown.ctrl.enter.prevent="send"></textarea>
@@ -254,5 +281,6 @@ onUnmounted(() => {
         </div>
       </form>
     </dialog>
+    <ChatRulesPanel ref="rulesPanel" :chat-id="selectedId" :workspace-id="workspaceId" :last="lastAnswer?.rules" />
   </section>
 </template>

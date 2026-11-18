@@ -15,14 +15,30 @@ namespace AiAssistant.Api.Controllers;
 public sealed class ChatsController(ISender sender) : ApplicationController
 {
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken cancellationToken, string? search = null, int page = 1, int limit = 25) =>
-        From(await sender.Send(new ListChats(CurrentUserId, search, page, limit), cancellationToken));
+    public async Task<IActionResult> List(CancellationToken cancellationToken, string? search = null, int page = 1, int limit = 25,
+        Guid? workspaceId = null, bool personalOnly = false) =>
+        From(await sender.Send(new ListChats(CurrentUserId, search, page, limit, workspaceId, personalOnly), cancellationToken));
+
+    [HttpGet("{chatId:guid}")]
+    public async Task<IActionResult> Get(Guid chatId, CancellationToken ct) => From(await sender.Send(new GetChat(CurrentUserId, chatId), ct));
+
+    [HttpGet("rules")]
+    public async Task<IActionResult> DefaultRules(Guid? workspaceId, CancellationToken ct) =>
+        From(await sender.Send(new GetChatRules(CurrentUserId, null, workspaceId), ct));
+
+    [HttpGet("{chatId:guid}/rules")]
+    public async Task<IActionResult> Rules(Guid chatId, CancellationToken ct) =>
+        From(await sender.Send(new GetChatRules(CurrentUserId, chatId, null), ct));
+
+    [HttpPut("{chatId:guid}/workspace")]
+    public async Task<IActionResult> Move(Guid chatId, MoveBody body, CancellationToken ct) =>
+        NoContentFrom(await sender.Send(new MoveChat(CurrentUserId, chatId, body.WorkspaceId), ct));
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] CreateBody? body,
         CancellationToken cancellationToken)
     {
-        var result = await sender.Send(new CreateChat(CurrentUserId, body?.PersonaId), cancellationToken);
+        var result = await sender.Send(new CreateChat(CurrentUserId, body?.PersonaId, body?.WorkspaceId, body?.Temporary ?? false), cancellationToken);
         return result.IsSuccess ? Created($"/api/v1/chats/{result.Value}/messages", new { id = result.Value }) : Failure(result.Error!);
     }
 
@@ -81,7 +97,8 @@ public sealed class ChatsController(ISender sender) : ApplicationController
         }
     }
 
-    public sealed record CreateBody(Guid? PersonaId);
+    public sealed record CreateBody(Guid? PersonaId, Guid? WorkspaceId = null, bool Temporary = false);
+    public sealed record MoveBody(Guid? WorkspaceId);
     public sealed record PatchBody(string? Title, bool? IsPinned, Guid? PersonaId);
     public sealed record SendBody(string? Content, Guid? RequestId, string? Model);
 }

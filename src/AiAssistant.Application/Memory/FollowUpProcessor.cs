@@ -17,16 +17,19 @@ public sealed partial class FollowUpProcessor(IAssistantData data, IAiProvider p
             from message in data.Query<Message>()
             join chat in data.Query<Chat>() on message.ChatId equals chat.Id
             where message.Role == MessageRole.Assistant && message.Status == GenerationStatus.Completed &&
-                  !message.FollowUpCompleted && message.TriggerMessageId.HasValue
+                  !message.FollowUpCompleted && message.TriggerMessageId.HasValue && chat.ExpiresAt == null
             orderby message.CreatedAt, message.Id
             select new FollowUp(message.Id, message.TriggerMessageId ?? Guid.Empty, chat.Id, chat.UserId,
-                message.Model ?? defaults.Model, chat.LastMessageAt, chat.SummaryUntilMessageId, chat.Summary),
+                message.Model ?? defaults.Model, chat.LastMessageAt, chat.SummaryUntilMessageId, chat.Summary,
+                chat.WorkspaceId, message.AppliedRules),
             cancellationToken);
         if (work is null) return false;
 
         var latestInput = await data.FirstAsync(data.Query<Message>().Where(message => message.Id == work.TriggerId)
             .Select(message => message.Content), cancellationToken);
-        var enabled = await data.AnyAsync(data.Query<PersonalizationProfile>()
+        var inWorkspace = work.WorkspaceId.HasValue || (work.AppliedRules is { } rules &&
+            JsonSerializer.Deserialize<ChatRules>(rules)?.WorkspaceName is not null);
+        var enabled = !inWorkspace && await data.AnyAsync(data.Query<PersonalizationProfile>()
             .Where(profile => profile.UserId == work.UserId && profile.AutoMemoryEnabled), cancellationToken);
 
         var memories = enabled && latestInput is not null && !MemoryText.IsSensitive(latestInput)
@@ -111,7 +114,7 @@ public sealed partial class FollowUpProcessor(IAssistantData data, IAiProvider p
             var answer = await data.FirstAsync(data.Query<Message>(true).Where(message => message.Id == work.AnswerId), ct);
             var chat = await data.FirstAsync(data.Query<Chat>(true).Where(item => item.Id == work.ChatId), ct);
             if (answer?.Status != GenerationStatus.Completed || answer.FollowUpCompleted || chat is null) return false;
-            if (memories.Length > 0 && await MayStoreAsync(work, input, ct))
+            if (chat.WorkspaceId is null && memories.Length > 0 && await MayStoreAsync(work, input, ct))
                 await StoreFactsAsync(work.UserId, memories, ct);
 
             if (summary is not null && chat.SummaryUntilMessageId == work.SummaryUntil && chat.LastMessageAt == work.LastMessageAt)
@@ -149,7 +152,7 @@ public sealed partial class FollowUpProcessor(IAssistantData data, IAiProvider p
     }
 
     private sealed record FollowUp(Guid AnswerId, Guid TriggerId, Guid ChatId, Guid UserId, string Model,
-        DateTimeOffset LastMessageAt, Guid? SummaryUntil, string? Summary);
+        DateTimeOffset LastMessageAt, Guid? SummaryUntil, string? Summary, Guid? WorkspaceId, string? AppliedRules);
     private sealed record SummaryItem(Guid Id, MessageRole Role, string Content);
     private sealed record SummaryUpdate(Guid UntilId, string Text);
 }

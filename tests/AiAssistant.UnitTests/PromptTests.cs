@@ -52,6 +52,18 @@ public sealed class PromptTests
             item => Assert.Contains("worked through ownership", item.Content),
             item => Assert.Equal("Recent complete exchange", item.Content),
             item => { Assert.StartsWith(current.Content, item.Content); Assert.Contains("Input excerpt.", item.Content); });
+
+        var workspace = new Workspace { UserId = user, Name = "Project", Instructions = "Review the tests.", Materials = "Project notes." };
+        data.Add(workspace);
+        data.Add(new Workspace { UserId = user, Name = "Another project", Materials = "Unrelated workspace secret" });
+        recent.WorkspaceId = workspace.Id;
+        var isolated = await prompt.BuildAsync(user, recent.Id, answer.Id, CancellationToken.None);
+        var system = Assert.Single(isolated.Messages, item => item.Role == "system");
+        Assert.Contains(workspace.Instructions, system.Content);
+        Assert.Contains(isolated.Messages, item => item.Content.Contains(workspace.Materials, StringComparison.Ordinal));
+        Assert.DoesNotContain(isolated.Messages, item => item.Content.Contains("Uses Rust", StringComparison.Ordinal) ||
+            item.Content.Contains("Study Rust.", StringComparison.Ordinal) || item.Content.Contains("Unrelated workspace", StringComparison.Ordinal));
+        Assert.False(isolated.Rules!.MemoryEnabled);
     }
 
     [Fact]

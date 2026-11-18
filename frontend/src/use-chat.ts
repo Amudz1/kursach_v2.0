@@ -3,7 +3,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { HubConnectionBuilder, HubConnectionState, type HubConnection } from '@microsoft/signalr'
 import { api, apiResponse, explain } from './api'
 import { useSession } from './session'
-import type { Adaptation, Attachment, Chat, Message, MessagePage, Page, Plan } from './types'
+import type { Adaptation, Attachment, Chat, Message, MessagePage, Page, Plan, Workspace } from './types'
 
 const terminal = (message: Message) => message.status !== 'pending' && message.status !== 'streaming'
 
@@ -13,8 +13,15 @@ export function useChat() {
   const session = useSession()
   const selectedId = computed(() => typeof route.params.id === 'string' ? route.params.id : '')
   const chats = ref<Chat[]>([])
+  const workspaces = ref<Workspace[]>([])
+  const detail = ref<Chat>()
   const messages = ref<Message[]>([])
-  const selected = computed(() => chats.value.find((chat) => chat.id === selectedId.value))
+  const selected = computed(() => chats.value.find((chat) => chat.id === selectedId.value) ??
+    (detail.value?.id === selectedId.value ? detail.value : undefined))
+  const workspaceId = computed(() => selected.value ? selected.value.workspaceId ?? '' :
+    typeof route.query.workspace === 'string' ? route.query.workspace : '')
+  const currentWorkspace = computed(() => workspaces.value.find((workspace) => workspace.id === workspaceId.value))
+  const workspaceQuery = computed(() => workspaceId.value ? { workspace: workspaceId.value } : {})
   const plans = ref<Plan[]>([])
   const currentPlan = computed(() => plans.value.find((plan) => plan.code === session.account?.usage.planCode))
   const model = ref('')
@@ -43,14 +50,28 @@ export function useChat() {
 
   async function loadChats(reset = true) {
     const wanted = reset ? 1 : page.value + 1
+    const workspace = workspaceId.value
     const query = new URLSearchParams({ search: search.value, page: String(wanted) })
+    if (workspace) query.set('workspaceId', workspace)
+    else query.set('personalOnly', 'true')
     try {
       const result = await api<Page<Chat>>(`/chats?${query}`)
-      if (search.value !== query.get('search')) return
+      if (search.value !== query.get('search') || workspace !== workspaceId.value) return
       chats.value = reset ? result.items : [...chats.value, ...result.items]
       chatsHaveMore.value = result.hasMore
       page.value = wanted
     } catch (reason) { error.value = explain(reason) }
+  }
+
+  async function loadSelected(id: string) {
+    try {
+      const chat = await api<Chat>(`/chats/${id}`)
+      if (id === selectedId.value) detail.value = chat
+    } catch (reason) { if (id === selectedId.value) error.value = explain(reason) }
+  }
+
+  function switchWorkspace(id: string) {
+    return router.push({ path: '/chats', query: id ? { workspace: id } : {} })
   }
 
   function updateMessage(item: Message) {
@@ -160,9 +181,10 @@ export function useChat() {
   }
 
   async function create() {
-    const result = await api<{ id: string }>('/chats', { method: 'POST' })
+    const scope = workspaceQuery.value
+    const result = await api<{ id: string }>('/chats', { method: 'POST', body: { workspaceId: workspaceId.value || null } })
     await loadChats()
-    await router.push(`/chats/${result.id}`)
+    await router.push({ path: `/chats/${result.id}`, query: scope })
     return result.id
   }
 
@@ -175,8 +197,22 @@ export function useChat() {
     const id = selectedId.value
     if (!id) return false
     error.value = ''
-    try { await api<void>(`/chats/${id}`, { method: 'PATCH', body }); await loadChats(); return true }
+    try { await api<void>(`/chats/${id}`, { method: 'PATCH', body }); await Promise.all([loadChats(), loadSelected(id)]); return true }
     catch (reason) { error.value = explain(reason); return false }
+  }
+
+  async function move(workspace: string) {
+    const id = selectedId.value
+    if (!id || flow.value) return
+    error.value = ''
+    try {
+      await api(`/chats/${id}/workspace`, { method: 'PUT', body: { workspaceId: workspace || null } })
+      if (id !== selectedId.value) return
+      chats.value = chats.value.filter((chat) => chat.id !== id)
+      await loadSelected(id)
+      await router.replace({ path: `/chats/${id}`, query: workspace ? { workspace } : {} })
+      await loadChats()
+    } catch (reason) { error.value = explain(reason) }
   }
 
   async function remove() {
@@ -184,7 +220,7 @@ export function useChat() {
     if (!id) return
     try {
       await api<void>(`/chats/${id}`, { method: 'DELETE' })
-      await router.replace('/chats')
+      await router.replace({ path: '/chats', query: workspaceQuery.value })
       await loadChats()
     } catch (reason) { error.value = explain(reason) }
   }
@@ -223,6 +259,7 @@ export function useChat() {
         updateMessage({ ...newPlaceholder(answer.id), status: 'pending' })
       draft.value = ''; files.value = []; pendingRequest = ''
       await loadChats()
+      if (selected.value?.expiresAt) await loadSelected(id)
       await loadMessages()
       await scrollBottom(true)
     } catch (reason) { error.value = explain(reason) }
@@ -288,9 +325,10 @@ export function useChat() {
     requestSignal?.abort()
     if (!id) return
     loading.value = true
-    await Promise.all([loadMessages(true), ensureHub()])
+    await Promise.all([loadMessages(true), loadSelected(id), ensureHub()])
     if (id === selectedId.value) loading.value = false
   }, { immediate: true })
+  watch(workspaceId, () => { chats.value = []; search.value = ''; void loadChats() })
   onMounted(async () => {
     timer = setInterval(() => {
       if (flow.value && (!linked.value || gap)) void loadMessages()
@@ -298,6 +336,7 @@ export function useChat() {
     }, 1500)
     try {
       await Promise.all([loadChats(), readAdaptation(),
+        api<Workspace[]>('/workspaces').then((value) => { workspaces.value = value }),
         api<Plan[]>('/plans', { auth: false }).then((value) => { plans.value = value })])
     } catch (reason) { error.value = explain(reason) }
   })
@@ -306,8 +345,8 @@ export function useChat() {
     void hub.value?.stop()
   })
 
-  return { chats, messages, selectedId, selected, model, currentPlan, search,
+  return { chats, messages, selectedId, selected, model, currentPlan, search, workspaces, workspaceId, workspaceQuery, currentWorkspace,
     nextBefore, chatsHaveMore, draft, files, busy, loading, error, linked, flow, lastUser, lastAnswer, adaptation, transcript,
-    loadChats, loadMessages, newChat, patch, remove, changeDraft, chooseFiles, removeFile, send, stop,
+    loadChats, loadMessages, newChat, patch, move, switchWorkspace, remove, changeDraft, chooseFiles, removeFile, send, stop,
     revise, rate, decide, download }
 }

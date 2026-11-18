@@ -36,6 +36,7 @@ builder.Services.AddSingleton(new AttachmentRoot(Path.GetFullPath(
 builder.Services.AddSingleton<IAttachmentStorage, LocalAttachmentStorage>();
 builder.Services.AddScoped<AttachmentLifecycle>();
 builder.Services.AddHostedService<AttachmentCleanupWorker>();
+builder.Services.AddHostedService<TemporaryChatCleanupWorker>();
 builder.Services.AddScoped<PlanAccess>();
 builder.Services.AddScoped<SubscriptionWriter>();
 builder.Services.AddScoped<AdminAccess>();

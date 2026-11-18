@@ -46,7 +46,14 @@ export type ResponseDecision = { task: TaskMode; length: string; format: string;
 
 export type PersonaInput = { name: string; description: string; instructions: string; temperature: number }
 export type Persona = PersonaInput & { id: string; model: string | null; isCustom: boolean }
-export type Chat = { id: string; title: string; personaId: string | null; isPinned: boolean; lastMessageAt: string }
+export type Workspace = { id: string; name: string; instructions: string; materials: string }
+export type Chat = { id: string; title: string; personaId: string | null; isPinned: boolean; lastMessageAt: string; workspaceId: string | null; expiresAt: string | null }
+export type ChatRules = {
+  language: string; tone: string; level: string; length: string; format: string; adaptToTask: boolean;
+  task: TaskMode | null; taskRule: string | null; taskInstructions: string | null; goal: string | null; persona: string | null;
+  workspaceName: string | null; workspaceInstructions: string | null; workspaceMaterials: boolean;
+  memoryEnabled: boolean; memoryUsed: boolean | null;
+}
 export type Attachment = { id: string; fileName: string; contentType: string; size: number }
 export type Message = {
   id: string
@@ -61,6 +68,7 @@ export type Message = {
   rating: number | null
   feedbackReason: string | null
   attachments?: Attachment[] | null
+  rules?: ChatRules | null
 }
 export type MessagePage = { items: Message[]; nextBefore: string | null }
 export type Page<T> = { items: T[]; hasMore: boolean }

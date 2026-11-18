@@ -18,12 +18,20 @@ public sealed partial class PromptContextBuilder
         return relevant.Length == 0 ? null : "Релевантные факты профиля: " + JsonSerializer.Serialize(relevant, PromptJson);
     }
 
-    private static void AddOptional(List<AiMessage> prompt, string? block, int ceiling, ref int remaining)
+    private static string? AddOptional(List<AiMessage> prompt, string? block, int ceiling, ref int remaining,
+        string prefix = "")
     {
-        if (string.IsNullOrWhiteSpace(block) || remaining < 80) return;
-        var text = Truncate(block, Math.Min(ceiling, remaining - MessageOverhead));
-        if (text.Length < 10) return;
-        prompt.Add(new("user", text));
-        remaining -= Cost(text);
+        var text = FitOptional(block, ceiling, ref remaining, prefix);
+        if (text is not null) prompt.Add(new("user", prefix + text));
+        return text;
+    }
+
+    private static string? FitOptional(string? block, int ceiling, ref int remaining, string prefix)
+    {
+        if (string.IsNullOrWhiteSpace(block) || remaining < 80) return null;
+        var text = Truncate(block, Math.Min(ceiling, remaining - Cost(prefix)));
+        if (text.Length == 0) return null;
+        remaining -= Cost(prefix + text);
+        return text;
     }
 }

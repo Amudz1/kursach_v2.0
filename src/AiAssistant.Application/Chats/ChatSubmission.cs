@@ -29,6 +29,8 @@ public sealed partial class ChatSubmission(IAssistantData data, ChatAccess acces
         {
             var chat = await access.FindAsync(request.UserId, request.ChatId, true, ct);
             if (chat is null) return ChatAccess.NotFound<QueuedMessage>();
+            if (chat.ExpiresAt.HasValue && files.Count > 0)
+                return Result<QueuedMessage>.Fail(ErrorKind.Validation, "temporary_files", "Во временном диалоге доступны текстовые сообщения.");
             var messages = data.Query<Message>().Where(message => message.ChatId == chat.Id);
             var prior = await data.FirstAsync(messages.Where(message => message.RequestId == request.RequestId), ct);
             if (prior is not null) return Result<QueuedMessage>.Ok(new(prior.Id, false));

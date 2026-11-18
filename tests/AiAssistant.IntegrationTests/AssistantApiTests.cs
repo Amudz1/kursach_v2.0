@@ -168,7 +168,7 @@ public sealed class AssistantApiTests(ApiFixture fixture) : IClassFixture<ApiFix
         Assert.True(operation.GetProperty("responses").TryGetProperty("202", out _));
     }
 
-    private static async Task RegisterAsync(HttpClient client)
+    internal static async Task RegisterAsync(HttpClient client)
     {
         using var result = await client.PostAsJsonAsync("/api/v1/auth/register", Registration(NewLogin()));
         Assert.Equal(HttpStatusCode.Created, result.StatusCode);
@@ -208,7 +208,7 @@ public sealed class AssistantApiTests(ApiFixture fixture) : IClassFixture<ApiFix
         return await client.SendAsync(request);
     }
 
-    private static async Task<JsonElement> WaitForAnswerAsync(HttpClient client, string path, Guid answer)
+    internal static async Task<JsonElement> WaitForAnswerAsync(HttpClient client, string path, Guid answer)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         while (true)
@@ -227,5 +227,5 @@ public sealed class AssistantApiTests(ApiFixture fixture) : IClassFixture<ApiFix
         }
     }
 
-    private static Task<JsonElement> BodyAsync(HttpResponseMessage response) => response.Content.ReadFromJsonAsync<JsonElement>();
+    internal static Task<JsonElement> BodyAsync(HttpResponseMessage response) => response.Content.ReadFromJsonAsync<JsonElement>();
 }

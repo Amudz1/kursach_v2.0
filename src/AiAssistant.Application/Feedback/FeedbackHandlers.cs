@@ -33,7 +33,8 @@ public sealed class FeedbackHandlers(IAssistantData data, ChatAccess chats, Pref
         {
             var answer = await data.FirstAsync(data.Query<Message>().Where(message => message.Id == request.MessageId &&
                 message.Role == MessageRole.Assistant && message.Status == GenerationStatus.Completed), ct);
-            if (answer is null || await chats.FindAsync(request.UserId, answer.ChatId, false, ct) is null)
+            var chat = answer is null ? null : await chats.FindAsync(request.UserId, answer.ChatId, false, ct);
+            if (answer is null || chat is null || chat.ExpiresAt.HasValue)
                 return Result<Unit>.Fail(ErrorKind.NotFound, "message_not_found", "Ответ для оценки не найден.");
 
             var feedback = await data.FirstAsync(data.Query<MessageFeedback>(true).Where(item =>

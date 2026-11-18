@@ -15,6 +15,7 @@ public sealed class Message
     public int? CompletionTokens { get; set; }
     public int ReservedTokens { get; set; }
     public string? ContextSnapshot { get; set; }
+    public string? AppliedRules { get; set; }
     public string[] Suggestions { get; set; } = [];
     public string? ErrorCode { get; set; }
     public bool FollowUpCompleted { get; set; }

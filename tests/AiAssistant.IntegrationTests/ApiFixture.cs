@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Npgsql;
 using Testcontainers.PostgreSql;
 using Xunit;
 
@@ -31,6 +32,15 @@ public sealed class ApiFixture : IAsyncLifetime
     {
         AllowAutoRedirect = false, HandleCookies = cookies
     });
+
+    internal async Task ExpireAsync(Guid chat)
+    {
+        await using var connection = new NpgsqlConnection(_database.GetConnectionString());
+        await connection.OpenAsync();
+        await using var update = new NpgsqlCommand("UPDATE chats SET expires_at = now() - interval '1 minute' WHERE id = $1", connection);
+        update.Parameters.AddWithValue(chat);
+        await update.ExecuteNonQueryAsync();
+    }
 
     public async Task DisposeAsync()
     {

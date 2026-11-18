@@ -80,6 +80,15 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("ImportKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("import_key");
+
                     b.Property<bool>("IsPinned")
                         .HasColumnType("boolean")
                         .HasColumnName("is_pinned");
@@ -110,9 +119,21 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
+                    b.Property<Guid?>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PersonaId");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasFilter("expires_at IS NOT NULL");
+
+                    b.HasIndex("UserId", "ImportKey")
+                        .IsUnique();
+
+                    b.HasIndex("WorkspaceId", "UserId");
 
                     b.HasIndex("UserId", "LastMessageAt", "Id")
                         .IsDescending(false, true, true);
@@ -126,6 +147,10 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<string>("AppliedRules")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("applied_rules");
 
                     b.Property<Guid>("ChatId")
                         .HasColumnType("uuid")
@@ -864,6 +889,42 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                     b.ToTable("user_memories", (string)null);
                 });
 
+            modelBuilder.Entity("AiAssistant.Domain.Workspace", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Instructions")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("instructions");
+
+                    b.Property<string>("Materials")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)")
+                        .HasColumnName("materials");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("workspaces", (string)null);
+                });
+
             modelBuilder.Entity("AiAssistant.Domain.Attachment", b =>
                 {
                     b.HasOne("AiAssistant.Domain.Message", null)
@@ -885,6 +946,12 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("AiAssistant.Domain.Workspace", null)
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId", "UserId")
+                        .HasPrincipalKey("Id", "UserId")
+                        .OnDelete(DeleteBehavior.NoAction);
                 });
 
             modelBuilder.Entity("AiAssistant.Domain.Message", b =>
@@ -982,6 +1049,15 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("AiAssistant.Domain.UserMemory", b =>
+                {
+                    b.HasOne("AiAssistant.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AiAssistant.Domain.Workspace", b =>
                 {
                     b.HasOne("AiAssistant.Domain.User", null)
                         .WithMany()

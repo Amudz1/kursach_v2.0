@@ -86,6 +86,7 @@ async function remove() {
           <div><dt>Токенов доступно</dt><dd>{{ session.account.usage.remainingTokens?.toLocaleString('ru-RU') ?? 'Безлимит' }}</dd></div>
         </dl>
         <RouterLink class="text-button" to="/plans">Сравнить тарифы ↗</RouterLink>
+        <RouterLink class="text-button" to="/data">Управление данными ↗</RouterLink>
         <button class="secondary" @click="logout">Выйти</button>
         <button class="text-button danger-text" @click="removePassword = ''; deletionError = ''; dialog?.showModal()">Удалить аккаунт</button>
       </aside>

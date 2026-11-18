@@ -1,3 +1,5 @@
+using System.Text.Json;
+using AiAssistant.Application.Ai;
 using AiAssistant.Application.Common;
 using AiAssistant.Application.Files;
 using AiAssistant.Application.Persistence;
@@ -6,16 +8,19 @@ using MediatR;
 
 namespace AiAssistant.Application.Chats;
 
-public sealed class ChatReadHandlers(IAssistantData data, ChatAccess access) :
+public sealed class ChatReadHandlers(IAssistantData data, ChatAccess access, IPromptContextBuilder prompts) :
     IRequestHandler<ListChats, Result<Page<ChatView>>>,
-    IRequestHandler<ListMessages, Result<MessagePage>>
+    IRequestHandler<ListMessages, Result<MessagePage>>, IRequestHandler<GetChat, Result<ChatView>>,
+    IRequestHandler<GetChatRules, Result<ChatRules>>
 {
     public async Task<Result<Page<ChatView>>> Handle(ListChats request, CancellationToken cancellationToken)
     {
         if (request.Page is < 1 or > 500 || request.Limit is < 1 or > 50 || request.Search?.Length > 120)
             return Result<Page<ChatView>>.Fail(ErrorKind.Validation, "invalid_page", "Проверьте параметры поиска.");
 
-        var query = data.Query<Chat>().Where(chat => chat.UserId == request.UserId);
+        var query = data.Query<Chat>().Where(chat => chat.UserId == request.UserId && chat.ExpiresAt == null);
+        if (request.WorkspaceId.HasValue) query = query.Where(chat => chat.WorkspaceId == request.WorkspaceId);
+        else if (request.PersonalOnly) query = query.Where(chat => chat.WorkspaceId == null);
         var search = request.Search?.Trim().ToLowerInvariant();
         if (!string.IsNullOrEmpty(search))
         {
@@ -28,9 +33,25 @@ public sealed class ChatReadHandlers(IAssistantData data, ChatAccess access) :
         var results = await data.ListAsync(query.OrderByDescending(chat => chat.IsPinned)
             .ThenByDescending(chat => chat.LastMessageAt).ThenByDescending(chat => chat.Id)
             .Skip((request.Page - 1) * request.Limit).Take(request.Limit + 1)
-            .Select(chat => new ChatView(chat.Id, chat.Title, chat.PersonaId, chat.IsPinned, chat.LastMessageAt)),
+            .Select(chat => new ChatView(chat.Id, chat.Title, chat.PersonaId, chat.IsPinned, chat.LastMessageAt, chat.WorkspaceId)),
             cancellationToken);
         return Result<Page<ChatView>>.Ok(new(results.Take(request.Limit).ToArray(), results.Count > request.Limit));
+    }
+
+    public async Task<Result<ChatView>> Handle(GetChat request, CancellationToken ct)
+    {
+        var chat = await access.FindAsync(request.UserId, request.ChatId, false, ct);
+        return chat is null ? ChatAccess.NotFound<ChatView>() : Result<ChatView>.Ok(
+            new(chat.Id, chat.Title, chat.PersonaId, chat.IsPinned, chat.LastMessageAt, chat.WorkspaceId, chat.ExpiresAt));
+    }
+
+    public async Task<Result<ChatRules>> Handle(GetChatRules request, CancellationToken ct)
+    {
+        if (request.ChatId is not { } id)
+            return await prompts.DescribeAsync(request.UserId, request.WorkspaceId, null, ct);
+        var chat = await access.FindAsync(request.UserId, id, false, ct);
+        return chat is null ? ChatAccess.NotFound<ChatRules>() :
+            await prompts.DescribeAsync(request.UserId, chat.WorkspaceId, chat.PersonaId, ct, chat.ExpiresAt.HasValue);
     }
 
     public async Task<Result<MessagePage>> Handle(ListMessages request, CancellationToken cancellationToken)
@@ -66,5 +87,6 @@ public sealed class ChatReadHandlers(IAssistantData data, ChatAccess access) :
     public static MessageView ToView(Message message, MessageFeedback? feedback = null,
         IReadOnlyList<AttachmentView>? attachments = null) => new(message.Id, message.Role.ToString().ToLowerInvariant(),
         message.Content, message.Status.ToString().ToLowerInvariant(), message.Model, message.ErrorCode,
-        message.Suggestions, message.CreatedAt, message.TriggerMessageId, feedback?.Rating, feedback?.Reason, attachments);
+        message.Suggestions, message.CreatedAt, message.TriggerMessageId, feedback?.Rating, feedback?.Reason, attachments,
+        message.AppliedRules is null ? null : JsonSerializer.Deserialize<ChatRules>(message.AppliedRules));
 }
