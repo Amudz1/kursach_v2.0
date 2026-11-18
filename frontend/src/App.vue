@@ -8,10 +8,10 @@ const route = useRoute()
 const router = useRouter()
 const fullScreen = computed(() => route.name === 'login' || route.name === 'onboarding')
 const nav = [
-  { to: '/chats', label: 'Диалоги', glyph: '▤' },
-  { to: '/personalization', label: 'Персонализация', glyph: '◉' },
-  { to: '/memory', label: 'Память', glyph: '▣' },
-  { to: '/plans', label: 'Тарифы', glyph: '◫' },
+  { to: '/chats', label: 'Диалоги' },
+  { to: '/personalization', label: 'Персонализация' },
+  { to: '/memory', label: 'Память' },
+  { to: '/plans', label: 'Тарифы' },
 ]
 watch(() => account.account, (value, previous) => {
   if (!value && previous && route.name !== 'login') void router.replace('/login')
@@ -24,25 +24,24 @@ watch(() => account.account, (value, previous) => {
     <RouterLink class="brand" to="/chats" aria-label="AI Helper Budz, диалоги">
       <span class="brand-mark" aria-hidden="true">b<span>.</span></span><span>budz<span class="brand-dot">.</span></span>
     </RouterLink>
-    <RouterLink class="header-balance" to="/plans" aria-label="Доступные токены и тарифы">
-      <span aria-hidden="true">◆</span>
-      {{ account.account.usage.remainingTokens === null ? 'Безлимит' : `${account.account.usage.remainingTokens.toLocaleString('ru-RU')} токенов` }}
-    </RouterLink>
-    <RouterLink class="account-link" to="/profile">
-      <span class="avatar" aria-hidden="true">{{ account.account.username.slice(0, 1).toUpperCase() }}</span>
-      <span class="account-name">{{ account.account.username }}</span>
-      <span class="sr-only">Профиль</span>
-    </RouterLink>
+    <nav class="top-navigation" aria-label="Основная навигация">
+      <RouterLink v-for="item in nav" :key="item.to" :to="item.to"
+        :aria-current="route.path === item.to ? 'page' : item.to === '/chats' && route.name === 'chat' ? 'location' : undefined">
+        {{ item.label }}
+      </RouterLink>
+      <RouterLink v-if="account.account.role === 'Admin'" to="/admin" aria-label="Администрирование">Админ</RouterLink>
+    </nav>
+    <div class="header-account">
+      <RouterLink class="header-balance" to="/plans" aria-label="Доступные токены и тарифы">
+        <span class="balance-mark" aria-hidden="true"></span>
+        {{ account.account.usage.remainingTokens === null ? 'Безлимит' : `${account.account.usage.remainingTokens.toLocaleString('ru-RU')} токенов` }}
+      </RouterLink>
+      <RouterLink class="account-link" to="/profile" :aria-label="`Профиль ${account.account.username}`" :title="account.account.username">
+        <span class="avatar" aria-hidden="true">{{ account.account.username.slice(0, 1).toUpperCase() }}</span>
+      </RouterLink>
+    </div>
   </header>
-  <main id="main" :class="{ 'workspace-main': route.name === 'chat', 'has-dock': !fullScreen && account.account }" tabindex="-1">
+  <main id="main" tabindex="-1">
     <RouterView />
   </main>
-  <nav v-if="!fullScreen && account.account" class="dock" aria-label="Основная навигация">
-    <RouterLink v-for="item in nav" :key="item.to" :to="item.to">
-      <span class="dock-glyph" aria-hidden="true">{{ item.glyph }}</span><span>{{ item.label }}</span>
-    </RouterLink>
-    <RouterLink v-if="account.account.role === 'Admin'" to="/admin" aria-label="Администрирование">
-      <span class="dock-glyph" aria-hidden="true">⚙</span><span>Админ</span>
-    </RouterLink>
-  </nav>
 </template>

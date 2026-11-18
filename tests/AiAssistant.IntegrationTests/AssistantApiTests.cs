@@ -99,6 +99,12 @@ public sealed class AssistantApiTests(ApiFixture fixture) : IClassFixture<ApiFix
             new PreviewProfile(saved, "Проверь функцию на C#"));
         Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
         Assert.Equal("short", (await BodyAsync(preview)).GetProperty("length").GetString());
+        using var followUp = await owner.PostAsJsonAsync("/api/v1/me/personalization/preview",
+            new PreviewProfile(saved, "А подробнее?", "Проверь функцию на C#"));
+        Assert.Equal(HttpStatusCode.OK, followUp.StatusCode);
+        var decision = await BodyAsync(followUp);
+        Assert.True(decision.GetProperty("fromHistory").GetBoolean());
+        Assert.Equal("Проверяй границы.", decision.GetProperty("instructions").GetString());
     }
 
     [Fact]

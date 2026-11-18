@@ -19,7 +19,7 @@ public sealed record ProfileView(string Language, string Tone, string ExpertiseL
 
 public sealed record GetProfile(Guid UserId) : IRequest<Result<ProfileView>>;
 public sealed record SaveProfile(Guid UserId, ProfileView Profile) : IRequest<Result<Unit>>;
-public sealed record PreviewProfile(ProfileView Profile, string Sample) : IRequest<Result<ResponseDecision>>;
+public sealed record PreviewProfile(ProfileView Profile, string Sample, string? Previous = null) : IRequest<Result<ResponseDecision>>;
 
 public sealed class ProfileHandlers(IAssistantData data, PreferenceReadCache cache, TimeProvider clock) :
     IRequestHandler<GetProfile, Result<ProfileView>>, IRequestHandler<SaveProfile, Result<Unit>>,
@@ -61,9 +61,11 @@ public sealed class ProfileHandlers(IAssistantData data, PreferenceReadCache cac
     {
         if (request.Sample.Trim().Length is 0 or > 400)
             return Result<ResponseDecision>.Fail(ErrorKind.Validation, "invalid_sample", "Введите пример длиной до 400 символов.");
+        if (request.Previous?.Length > 400)
+            return Result<ResponseDecision>.Fail(ErrorKind.Validation, "invalid_previous_sample", "Предыдущий запрос должен быть не длиннее 400 символов.");
         var validation = await Validator.ValidateAsync(request.Profile, cancellationToken);
         return validation.IsValid
-            ? Result<ResponseDecision>.Ok(ResponsePolicy.Resolve(request.Profile, request.Sample.Trim()))
+            ? Result<ResponseDecision>.Ok(ResponsePolicy.Resolve(request.Profile, request.Sample.Trim(), request.Previous?.Trim()))
             : Result<ResponseDecision>.Invalid(validation.ToDictionary());
     }
 
