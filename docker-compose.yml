@@ -24,6 +24,8 @@ services:
       Database__MigrateOnStart: "true"
       Database__SeedDemo: "${SEED_DEMO:-true}"
       Database__DemoPassword: "${DEMO_PASSWORD:-Budz-local-demo-2026}"
+      Ai__Mode: "${AI_MODE:-Demo}"
+      OpenRouter__ApiKey: "${OPENROUTER_API_KEY:-}"
     ports:
       - "127.0.0.1:${API_PORT:-8080}:8080"
     depends_on:

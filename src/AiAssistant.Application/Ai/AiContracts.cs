@@ -1,0 +1,20 @@
+namespace AiAssistant.Application.Ai;
+
+public sealed record AiMessage(string Role, string Content);
+public sealed record AiRequest(string Model, IReadOnlyList<AiMessage> Messages, double Temperature = 0.5, int MaxTokens = 1200);
+public sealed record AiUsage(int PromptTokens, int CompletionTokens);
+public sealed record AiReply(string Content, AiUsage? Usage);
+public sealed record AiDefaults(string Model, bool Demo);
+
+/// <summary>Generates assistant responses using the configured model provider.</summary>
+public interface IAiProvider
+{
+    /// <summary>Returns a complete model response and its token usage when supplied by the provider.</summary>
+    Task<AiReply> CompleteAsync(AiRequest request, CancellationToken cancellationToken);
+}
+
+public sealed class AiProviderException(string code, string message, Exception? innerException = null)
+    : Exception(message, innerException)
+{
+    public string Code { get; } = code;
+}

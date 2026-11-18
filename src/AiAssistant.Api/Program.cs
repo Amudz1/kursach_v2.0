@@ -1,5 +1,7 @@
+using AiAssistant.Api.Ai;
 using AiAssistant.Api.Security;
 using AiAssistant.Application.Auth;
+using AiAssistant.Application.Chats;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +11,9 @@ builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<RegisterAccount>());
 builder.Services.AddAssistantAuth(builder.Configuration, builder.Environment);
+builder.Services.AddAssistantAi(builder.Configuration, builder.Environment);
+builder.Services.AddScoped<ChatAccess>();
+builder.Services.AddScoped<ChatSubmission>();
 builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("postgres");
 builder.Services.AddSingleton(TimeProvider.System);
