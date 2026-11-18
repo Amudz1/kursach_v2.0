@@ -2,5 +2,6 @@
   <ItemGroup>
     <ProjectReference Include="../AiAssistant.Application/AiAssistant.Application.csproj" />
     <ProjectReference Include="../AiAssistant.Infrastructure/AiAssistant.Infrastructure.csproj" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15" PrivateAssets="all" />
   </ItemGroup>
 </Project>
