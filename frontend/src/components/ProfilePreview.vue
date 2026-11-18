@@ -109,13 +109,13 @@ const examples = computed(() => {
 .response-check { min-width: 0; padding: clamp(.9rem, 2.4vw, 1.5rem); background: var(--feature); color: #fffdf5;
   border-radius: 13px; scroll-margin-top: calc(var(--header) + .9rem); }
 .response-check header h2 { font: 500 clamp(1.65rem, 2.5vw, 2.2rem)/1.1 var(--serif); letter-spacing: -.037em; }
-.response-check header p { margin-top: .45rem; font-size: .86rem; color: #e3eadd; }
+.response-check header p { margin-top: .45rem; font-size: .86rem; color: var(--feature-ink); }
 .preview-switch { display: grid; grid-template-columns: 1fr 1fr; gap: .2rem; padding: .23rem; margin: 1.05rem 0 .75rem;
-  background: #1e352a; border-radius: 8px; }
+  background: color-mix(in srgb, var(--feature), black 20%); border-radius: 8px; }
 .preview-switch button { min-height: 35px; padding: .4rem .5rem; border: 0; border-radius: 6px;
   color: #f7f5ed; background: transparent; font-size: .82rem; font-weight: 650; }
-.preview-switch button:hover { background: #3a5345; }
-.preview-switch button[aria-pressed=true] { color: light-dark(#284135, #18251a); background: light-dark(#f4efe4, #c1dbc1); }
+.preview-switch button:hover { background: color-mix(in srgb, var(--feature), white 11%); }
+.preview-switch button[aria-pressed=true] { color: light-dark(#284135, var(--on-fill)); background: light-dark(#f4efe4, var(--contrast-fill)); }
 .response-check :focus-visible { outline-color: #f0c797; }
 .example-card, .request-check { border-radius: 9px; background: var(--sheet); color: var(--ink); }
 .example-card { display: grid; gap: .75rem; padding: .9rem 1rem; }

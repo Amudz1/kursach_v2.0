@@ -20,8 +20,31 @@ const action = (name) => page.getByRole('button', { name, exact: true })
 const nav = (label) => page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('link', { name: label, exact: true })
 const history = page.getByRole('navigation', { name: 'История диалогов' })
 const lightBackground = 'rgb(243, 238, 228)'
-const darkBackground = 'rgb(24, 29, 25)'
+const darkBackground = 'rgb(31, 32, 34)'
 const background = () => page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)
+const tint = () => page.locator('html').getAttribute('data-tint')
+const customColor = page.getByLabel('Свой цвет', { exact: true })
+
+async function readableColor(selector) {
+  const contrast = await page.locator(selector).evaluate((element) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 1
+    const context = canvas.getContext('2d')
+    const luminance = (color) => {
+      context.fillStyle = color
+      context.fillRect(0, 0, 1, 1)
+      const [red, green, blue] = Array.from(context.getImageData(0, 0, 1, 1).data).map((channel) => {
+        const value = channel / 255
+        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+      })
+      return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+    }
+    const style = getComputedStyle(element)
+    const values = [luminance(style.color), luminance(style.backgroundColor)]
+    return (Math.max(...values) + 0.05) / (Math.min(...values) + 0.05)
+  })
+  assert.ok(contrast >= 4.5, `Expected readable text on ${selector}, got a ratio of ${contrast.toFixed(2)}`)
+}
 async function noOverflow() {
   const metrics = await page.evaluate(() => ({ actual: document.documentElement.scrollWidth, available: innerWidth }))
   assert.ok(metrics.actual <= metrics.available + 1, 'Horizontal page overflow: ' + JSON.stringify(metrics))
@@ -51,6 +74,13 @@ try {
   await heading('Как должен выглядеть Budz?').waitFor()
   assert.equal(await page.getByRole('radio', { name: 'Как в браузере' }).isChecked(), true)
   await page.getByRole('radio', { name: 'Тёмная' }).check()
+  assert.equal(await background(), darkBackground)
+  await action('Дымчато-синий').click()
+  await page.getByRole('button', { name: 'Дымчато-синий', pressed: true }).waitFor()
+  assert.equal(await tint(), '#7293b6')
+  assert.notEqual(await background(), darkBackground)
+  await action('Стандартный').click()
+  assert.equal(await tint(), null)
   assert.equal(await background(), darkBackground)
   await action('Далее').click()
   await heading('Как вам отвечать?').waitFor()
@@ -125,7 +155,29 @@ try {
   assert.equal(await background(), lightBackground)
   await page.getByRole('radio', { name: 'Как в браузере' }).check()
   assert.equal(await background(), darkBackground)
+  await customColor.fill('#ffffff')
+  assert.equal(await tint(), '#ffffff')
+  assert.notEqual(await background(), darkBackground)
+  await readableColor('html')
+  await readableColor('.account-link .avatar')
+  await customColor.fill('#806f9e')
+  assert.equal(await tint(), '#806f9e')
+  const customDarkBackground = await background()
+  await page.reload()
+  await heading('Профиль').waitFor()
+  assert.equal(await customColor.inputValue(), '#806f9e')
+  assert.equal(await background(), customDarkBackground)
+  await noOverflow()
+  await write('profile-theme.png')
   await page.emulateMedia({ colorScheme: 'light' })
+  assert.equal(await tint(), '#806f9e')
+  assert.notEqual(await background(), customDarkBackground)
+  assert.notEqual(await background(), lightBackground)
+  await customColor.fill('#000000')
+  await readableColor('html')
+  await readableColor('.account-link .avatar')
+  await action('Стандартный').click()
+  assert.equal(await tint(), null)
   assert.equal(await background(), lightBackground)
   await page.goto(chat)
   await heading('Коллекции в C#').waitFor()
@@ -221,13 +273,16 @@ try {
 
   await page.locator('.account-link').click()
   await heading('Личная статистика').waitFor()
+  await page.setViewportSize({ width: 360, height: 800 })
+  await customColor.waitFor()
+  await noOverflow()
   await page.getByText('Запросов за период', { exact: true }).waitFor()
   await action('Удалить аккаунт').click()
   await page.getByLabel('Подтвердите паролем').fill(password)
   await page.getByRole('dialog').getByRole('button', { name: 'Удалить аккаунт', exact: true }).click()
   await heading('Войти в Budz').waitFor()
   assert.deepEqual(failures, [], 'Unhandled browser exceptions')
-  console.log('Verified Vue: onboarding and profile themes, live browser color-scheme changes, persistent desktop history toggle, mobile history and keyboard, composer, streaming, personalization and 360/768/1440 px.')
+  console.log('Verified Vue: muted dark theme, onboarding palette, custom tint and reset, persistence, contrast, system theme, desktop and mobile history, composer, streaming and 360/768/1440 px.')
 } catch (error) {
   console.error('Debug state:', await page.locator('body').innerText().catch(() => ''), failures)
   await page.screenshot({ path: path.join(captures, 'failed.png') }).catch(() => undefined)

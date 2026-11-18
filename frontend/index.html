@@ -5,8 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script>
       try {
+        const root = document.documentElement
         const theme = localStorage.getItem('budz.theme')
-        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme
+        if (theme === 'light' || theme === 'dark') root.dataset.theme = theme
+        const tint = localStorage.getItem('budz.theme-tint')
+        if (tint && /^#[0-9a-f]{6}$/i.test(tint)) {
+          root.dataset.tint = tint
+          root.style.setProperty('--theme-tint', tint)
+        }
       } catch { /* Browser storage can be unavailable. */ }
     </script>
     <title>AI Helper Budz</title>
