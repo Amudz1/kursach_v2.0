@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AiAssistant.Application.Ai;
+using AiAssistant.Application.Chats;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Domain;
 using Microsoft.Extensions.Logging;
@@ -7,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace AiAssistant.Application.Memory;
 
 public sealed partial class FollowUpProcessor(IAssistantData data, IAiProvider provider, AiDefaults defaults,
-    TimeProvider clock, ILogger<FollowUpProcessor> logger)
+    TimeProvider clock, IGenerationEvents events, ILogger<FollowUpProcessor> logger)
 {
     public async Task<bool> ProcessNextAsync(CancellationToken cancellationToken)
     {
@@ -30,7 +31,9 @@ public sealed partial class FollowUpProcessor(IAssistantData data, IAiProvider p
         var memories = enabled && latestInput is not null && !MemoryText.IsSensitive(latestInput)
             ? await ReadFactsAsync(work.Model, latestInput, cancellationToken) : [];
         var summary = await SummarizeAsync(work, cancellationToken);
-        await SaveAsync(work, latestInput, memories, summary, cancellationToken);
+        var suggestions = await SuggestAsync(work, latestInput, cancellationToken);
+        if (await SaveAsync(work, latestInput, memories, summary, suggestions, cancellationToken) && suggestions.Length > 0)
+            await events.SuggestionsAsync(work.UserId, work.ChatId, work.AnswerId, suggestions, cancellationToken);
         return true;
     }
 
@@ -89,7 +92,9 @@ public sealed partial class FollowUpProcessor(IAssistantData data, IAiProvider p
     {
         try
         {
-            return (await provider.CompleteAsync(request, cancellationToken)).Content;
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(20));
+            return (await provider.CompleteAsync(request, timeout.Token)).Content;
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
@@ -98,7 +103,7 @@ public sealed partial class FollowUpProcessor(IAssistantData data, IAiProvider p
         }
     }
 
-    private Task<bool> SaveAsync(FollowUp work, string? input, string[] memories, SummaryUpdate? summary,
+    private Task<bool> SaveAsync(FollowUp work, string? input, string[] memories, SummaryUpdate? summary, string[] suggestions,
         CancellationToken cancellationToken) =>
         data.ForUserAsync(work.UserId, async ct =>
         {
@@ -114,6 +119,7 @@ public sealed partial class FollowUpProcessor(IAssistantData data, IAiProvider p
                 chat.SummaryUntilMessageId = summary.UntilId;
             }
             answer.FollowUpCompleted = true;
+            answer.Suggestions = suggestions;
             await data.SaveAsync(ct);
             return true;
         }, cancellationToken);

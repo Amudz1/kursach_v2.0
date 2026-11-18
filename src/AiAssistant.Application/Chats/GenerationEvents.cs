@@ -13,4 +13,7 @@ public interface IGenerationEvents
 
     /// <summary>Publishes a terminal status and the final text persisted in history.</summary>
     Task FinishedAsync(Guid userId, Guid chatId, MessageView message, AiUsage? usage, CancellationToken cancellationToken);
+
+    /// <summary>Publishes follow-up questions after they are saved with the completed message.</summary>
+    Task SuggestionsAsync(Guid userId, Guid chatId, Guid messageId, string[] items, CancellationToken cancellationToken);
 }

@@ -5,7 +5,8 @@ namespace AiAssistant.Application.Chats;
 
 public sealed record ChatView(Guid Id, string Title, Guid? PersonaId, bool IsPinned, DateTimeOffset LastMessageAt);
 public sealed record MessageView(Guid Id, string Role, string Content, string Status, string? Model,
-    string? ErrorCode, string[] Suggestions, DateTimeOffset CreatedAt, Guid? TriggerMessageId);
+    string? ErrorCode, string[] Suggestions, DateTimeOffset CreatedAt, Guid? TriggerMessageId, int? Rating = null,
+    string? FeedbackReason = null);
 public sealed record Page<T>(IReadOnlyList<T> Items, bool HasMore);
 public sealed record MessagePage(IReadOnlyList<MessageView> Items, Guid? NextBefore);
 

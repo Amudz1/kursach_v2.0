@@ -20,6 +20,19 @@ public sealed partial class DemoAiProvider : IAiProvider
         }
         if (request.Purpose == AiTask.Summarize)
             return Task.FromResult(new AiReply("Демо: в ранней части диалога пользователь уточнял исходные условия.", null));
+        if (request.Purpose == AiTask.Suggest)
+        {
+            using var json = JsonDocument.Parse(question);
+            var interests = json.RootElement.GetProperty("interests");
+            var theme = interests.GetArrayLength() > 0 ? interests[0].GetString() : null;
+            var english = json.RootElement.GetProperty("language").GetString() == "en";
+            var suggestions = english
+                ? new[] { theme is null ? "Could you show a practical example?" : $"Could you show an example using {theme}?",
+                    "What is a common mistake here?" }
+                : new[] { theme is null ? "Можно разобрать практический пример?" : $"Как применить это в теме «{theme}»?",
+                    "Какая ошибка здесь встречается чаще всего?" };
+            return Task.FromResult(new AiReply(JsonSerializer.Serialize(suggestions), null));
+        }
         var display = question.Length <= 110 ? question : question[..110] + "…";
         var profile = request.Messages.FirstOrDefault(message => message.Content.StartsWith("Параметры профиля:", StringComparison.Ordinal));
         var inEnglish = profile?.Content.Contains("\"language\":\"en\"", StringComparison.Ordinal) == true;

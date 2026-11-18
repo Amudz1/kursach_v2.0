@@ -6,6 +6,9 @@ namespace AiAssistant.Api.Realtime;
 
 public sealed class HubGenerationEvents(IHubContext<ChatHub> hub) : IGenerationEvents
 {
+    public Task SuggestionsAsync(Guid userId, Guid chatId, Guid messageId, string[] items, CancellationToken cancellationToken) =>
+        hub.Clients.Group(ChatHub.Group(userId, chatId)).SendAsync("SuggestionsReady", messageId, items, chatId, cancellationToken);
+
     public Task StartedAsync(Guid userId, Guid chatId, Guid messageId, CancellationToken cancellationToken) =>
         hub.Clients.Group(ChatHub.Group(userId, chatId)).SendAsync("MessageStarted", messageId, chatId, cancellationToken);
 
