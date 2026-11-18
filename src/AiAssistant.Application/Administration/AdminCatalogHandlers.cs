@@ -19,7 +19,7 @@ public sealed record ListAdminPlans(Guid AdminId) : IRequest<Result<IReadOnlyLis
 public sealed record SaveAdminPlan(Guid AdminId, Guid? Id, AdminPlanInput Value) : IRequest<Result<Guid>>;
 public sealed record RemoveAdminPlan(Guid AdminId, Guid Id) : IRequest<Result<Unit>>;
 
-public sealed class AdminCatalogHandlers(IAssistantData data, AdminAccess access) :
+public sealed class AdminCatalogHandlers(IAssistantData data, AdminAccess access, PreferenceReadCache cache) :
     IRequestHandler<ListAdminPersonas, Result<IReadOnlyList<AdminPersonaItem>>>,
     IRequestHandler<SaveAdminPersona, Result<Guid>>, IRequestHandler<RemoveAdminPersona, Result<Unit>>,
     IRequestHandler<ListAdminPlans, Result<IReadOnlyList<AdminPlanItem>>>,
@@ -59,6 +59,7 @@ public sealed class AdminCatalogHandlers(IAssistantData data, AdminAccess access
         persona.DefaultModel = string.IsNullOrWhiteSpace(request.Value.Model) ? null : request.Value.Model.Trim();
         persona.IsActive = request.Value.IsActive;
         await data.SaveAsync(cancellationToken);
+        cache.InvalidatePersonas();
         return Result<Guid>.Ok(persona.Id);
     }
 
@@ -69,6 +70,7 @@ public sealed class AdminCatalogHandlers(IAssistantData data, AdminAccess access
         if (persona is null) return MissingPersona<Unit>();
         data.Remove(persona);
         await data.SaveAsync(cancellationToken);
+        cache.InvalidatePersonas();
         return Result<Unit>.Ok(Unit.Value);
     }
 

@@ -3,13 +3,14 @@ using AiAssistant.Application.Billing;
 using AiAssistant.Application.Chats;
 using AiAssistant.Application.Files;
 using AiAssistant.Application.Persistence;
+using AiAssistant.Application.Personalization;
 using AiAssistant.Domain;
 using MediatR;
 
 namespace AiAssistant.Application.Auth;
 
 public sealed class AccountHandlers(IAssistantData data, IPasswordService passwords, TimeProvider clock,
-    IUsageLimitService usage, AttachmentLifecycle attachments, GenerationStops stops) :
+    IUsageLimitService usage, AttachmentLifecycle attachments, GenerationStops stops, PreferenceReadCache cache) :
     IRequestHandler<GetAccount, Result<AccountView>>,
     IRequestHandler<ChangeEmail, Result<Unit>>,
     IRequestHandler<ChangePassword, Result<Unit>>,
@@ -78,6 +79,8 @@ public sealed class AccountHandlers(IAssistantData data, IPasswordService passwo
         if (!result.IsSuccess) return result;
         foreach (var id in generations) await stops.StopAsync(id);
         attachments.Delete(keys);
+        cache.InvalidateProfiles();
+        cache.InvalidatePersonas();
         return result;
     }
 

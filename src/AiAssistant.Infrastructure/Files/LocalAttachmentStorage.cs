@@ -78,7 +78,7 @@ public sealed class LocalAttachmentStorage(AttachmentRoot root) : IAttachmentSto
         }
     }
 
-    public void Delete(string key) => File.Delete(PathFor(key));
+    public void Delete(string key) => File.Delete(PathFor(key, allowTemporary: true));
 
     public IEnumerable<string> OldKeys(DateTimeOffset cutoff)
     {
@@ -86,15 +86,23 @@ public sealed class LocalAttachmentStorage(AttachmentRoot root) : IAttachmentSto
         foreach (var path in Directory.EnumerateFiles(root.Directory))
         {
             var key = Path.GetFileName(path);
-            if (Guid.TryParseExact(key, "N", out _) && File.GetLastWriteTimeUtc(path) < cutoff.UtcDateTime)
+            if (IsStorageKey(key, allowTemporary: true) && File.GetLastWriteTimeUtc(path) < cutoff.UtcDateTime)
                 yield return key;
         }
     }
 
-    private string PathFor(string key)
+    private string PathFor(string key, bool allowTemporary = false)
     {
-        if (!Guid.TryParseExact(key, "N", out _)) throw new ArgumentException("Invalid private storage key.", nameof(key));
+        if (!IsStorageKey(key, allowTemporary)) throw new ArgumentException("Invalid private storage key.", nameof(key));
         return Path.Combine(root.Directory, key);
+    }
+
+    private static bool IsStorageKey(string key, bool allowTemporary)
+    {
+        const string temporarySuffix = ".upload";
+        var id = allowTemporary && key.EndsWith(temporarySuffix, StringComparison.Ordinal)
+            ? key[..^temporarySuffix.Length] : key;
+        return Guid.TryParseExact(id, "N", out _);
     }
 
     private static string ExtractText(byte[] bytes)

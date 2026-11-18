@@ -15,7 +15,7 @@ public sealed record ListPersonas(Guid UserId) : IRequest<Result<IReadOnlyList<P
 public sealed record SavePersona(Guid UserId, Guid? PersonaId, PersonaInput Input) : IRequest<Result<Guid>>;
 public sealed record DeletePersona(Guid UserId, Guid PersonaId) : IRequest<Result<Unit>>;
 
-public sealed class PersonaHandlers(IAssistantData data, PersonaAccess access, PlanAccess plans) :
+public sealed class PersonaHandlers(IAssistantData data, PersonaAccess access, PlanAccess plans, PreferenceReadCache cache) :
     IRequestHandler<ListPersonas, Result<IReadOnlyList<PersonaView>>>,
     IRequestHandler<SavePersona, Result<Guid>>, IRequestHandler<DeletePersona, Result<Unit>>
 {
@@ -29,10 +29,11 @@ public sealed class PersonaHandlers(IAssistantData data, PersonaAccess access, P
 
     public async Task<Result<IReadOnlyList<PersonaView>>> Handle(ListPersonas request, CancellationToken cancellationToken)
     {
-        var personas = await data.ListAsync(access.Available(request.UserId).OrderBy(persona => persona.OwnerId != null)
+        var personas = await cache.PersonasAsync(request.UserId, async () =>
+            await data.ListAsync(access.Available(request.UserId).OrderBy(persona => persona.OwnerId != null)
             .ThenBy(persona => persona.Id).Select(persona => new PersonaView(persona.Id, persona.Name,
                 persona.Description, persona.SystemPrompt, persona.Temperature, persona.DefaultModel, persona.OwnerId != null)),
-            cancellationToken);
+            cancellationToken));
         return Result<IReadOnlyList<PersonaView>>.Ok(personas);
     }
 
@@ -41,7 +42,7 @@ public sealed class PersonaHandlers(IAssistantData data, PersonaAccess access, P
         var validation = await Validator.ValidateAsync(request.Input, cancellationToken);
         if (!validation.IsValid) return Result<Guid>.Invalid(validation.ToDictionary());
 
-        return await data.ForUserAsync(request.UserId, async ct =>
+        var result = await data.ForUserAsync(request.UserId, async ct =>
         {
             if (request.PersonaId is not { } id)
             {
@@ -64,10 +65,13 @@ public sealed class PersonaHandlers(IAssistantData data, PersonaAccess access, P
             await data.SaveAsync(ct);
             return Result<Guid>.Ok(persona.Id);
         }, cancellationToken);
+        if (result.IsSuccess) cache.InvalidatePersonas();
+        return result;
     }
 
-    public Task<Result<Unit>> Handle(DeletePersona request, CancellationToken cancellationToken) =>
-        data.ForUserAsync(request.UserId, async ct =>
+    public async Task<Result<Unit>> Handle(DeletePersona request, CancellationToken cancellationToken)
+    {
+        var result = await data.ForUserAsync(request.UserId, async ct =>
         {
             var persona = await FindOwnedAsync(request.UserId, request.PersonaId, ct);
             if (persona is null) return NotFound<Unit>();
@@ -75,6 +79,9 @@ public sealed class PersonaHandlers(IAssistantData data, PersonaAccess access, P
             await data.SaveAsync(ct);
             return Result<Unit>.Ok(Unit.Value);
         }, cancellationToken);
+        if (result.IsSuccess) cache.InvalidatePersonas();
+        return result;
+    }
 
     private Task<Persona?> FindOwnedAsync(Guid userId, Guid personaId, CancellationToken cancellationToken) =>
         data.FirstAsync(data.Query<Persona>(true).Where(persona => persona.Id == personaId && persona.OwnerId == userId), cancellationToken);

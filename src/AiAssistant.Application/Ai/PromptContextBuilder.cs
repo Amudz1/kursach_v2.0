@@ -46,7 +46,7 @@ public sealed partial class PromptContextBuilder(IAssistantData data, PersonaAcc
         var preferences = Truncate(ProfileBlock(profile), remaining / 3);
         remaining -= Cost(preferences);
         var currentMessage = await IncludeAttachmentsAsync(current, model, remaining, cancellationToken);
-        remaining -= Cost(currentMessage.Content);
+        remaining -= Cost(currentMessage.Content) + (currentMessage.Images?.Count ?? 0) * EstimatedImageTokens;
 
         var prompt = new List<AiMessage> { new("system", system), new("user", preferences) };
         var memory = await MemoryBlockAsync(userId, current.Content, cancellationToken);

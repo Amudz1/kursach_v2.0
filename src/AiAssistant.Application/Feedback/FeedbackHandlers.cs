@@ -1,6 +1,7 @@
 using AiAssistant.Application.Chats;
 using AiAssistant.Application.Common;
 using AiAssistant.Application.Persistence;
+using AiAssistant.Application.Personalization;
 using AiAssistant.Domain;
 using MediatR;
 
@@ -12,7 +13,7 @@ public sealed record GetAdaptation(Guid UserId) : IRequest<Result<AdaptationView
 public sealed record DecideAdaptation(Guid UserId, Guid FeedbackId, bool Apply) : IRequest<Result<Unit>>;
 public sealed record AdaptationView(Guid FeedbackId, string CurrentLength, string ProposedLength);
 
-public sealed class FeedbackHandlers(IAssistantData data, ChatAccess chats, TimeProvider clock) :
+public sealed class FeedbackHandlers(IAssistantData data, ChatAccess chats, PreferenceReadCache cache, TimeProvider clock) :
     IRequestHandler<RateMessage, Result<Unit>>, IRequestHandler<GetAdaptation, Result<AdaptationView?>>,
     IRequestHandler<DecideAdaptation, Result<Unit>>
 {
@@ -57,8 +58,9 @@ public sealed class FeedbackHandlers(IAssistantData data, ChatAccess chats, Time
         return Result<AdaptationView?>.Ok(profile is null ? null : await ProposeAsync(profile, cancellationToken));
     }
 
-    public Task<Result<Unit>> Handle(DecideAdaptation request, CancellationToken cancellationToken) =>
-        data.ForUserAsync(request.UserId, async ct =>
+    public async Task<Result<Unit>> Handle(DecideAdaptation request, CancellationToken cancellationToken)
+    {
+        var result = await data.ForUserAsync(request.UserId, async ct =>
         {
             var profile = await ProfileAsync(request.UserId, true, ct);
             var proposal = profile is null ? null : await ProposeAsync(profile, ct);
@@ -70,6 +72,9 @@ public sealed class FeedbackHandlers(IAssistantData data, ChatAccess chats, Time
             await data.SaveAsync(ct);
             return Result<Unit>.Ok(Unit.Value);
         }, cancellationToken);
+        if (result.IsSuccess && request.Apply) cache.InvalidateProfiles();
+        return result;
+    }
 
     private Task<PersonalizationProfile?> ProfileAsync(Guid userId, bool tracked, CancellationToken cancellationToken) =>
         data.FirstAsync(data.Query<PersonalizationProfile>(tracked).Where(profile => profile.UserId == userId), cancellationToken);

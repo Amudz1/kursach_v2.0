@@ -1,4 +1,5 @@
 using AiAssistant.Api.Ai;
+using AiAssistant.Api.Documentation;
 using AiAssistant.Api.Realtime;
 using AiAssistant.Api.Security;
 using AiAssistant.Application.Administration;
@@ -13,10 +14,18 @@ using AiAssistant.Application.Personalization;
 using AiAssistant.Infrastructure.Persistence;
 using AiAssistant.Infrastructure.Files;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
+using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
+builder.Services.AddAssistantDocumentation();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<PreferenceReadCache>();
+builder.Services.AddSerilog((_, configuration) => configuration.Enrich.FromLogContext()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+    .WriteTo.Console());
 builder.Services.AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<RegisterAccount>());
 builder.Services.AddAssistantAuth(builder.Configuration, builder.Environment);
 builder.Services.AddAssistantAi(builder.Configuration, builder.Environment);
@@ -67,6 +76,11 @@ app.UseStatusCodePages();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
+if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Diagnostics:Swagger"))
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(options => options.SwaggerEndpoint("/swagger/v1/swagger.json", "AI Helper Budz v1"));
+}
 app.MapHealthChecks("/health");
 app.MapControllers();
 app.MapHub<ChatHub>("/hubs/chat", options => options.CloseOnAuthenticationExpiration = true);

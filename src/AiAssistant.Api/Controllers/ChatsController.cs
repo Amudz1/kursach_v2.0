@@ -44,6 +44,7 @@ public sealed class ChatsController(ISender sender) : ApplicationController
     [Consumes("application/json", "multipart/form-data")]
     [RequestSizeLimit(17 * 1024 * 1024)]
     [RequestFormLimits(MultipartBodyLengthLimit = 16 * 1024 * 1024)]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
     public async Task<IActionResult> Send(Guid chatId, CancellationToken cancellationToken)
     {
         var files = new List<IncomingAttachment>();

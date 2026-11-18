@@ -16,7 +16,7 @@ public sealed record ProfileView(string Language, string Tone, string ExpertiseL
 public sealed record GetProfile(Guid UserId) : IRequest<Result<ProfileView>>;
 public sealed record SaveProfile(Guid UserId, ProfileView Profile) : IRequest<Result<Unit>>;
 
-public sealed class ProfileHandlers(IAssistantData data, TimeProvider clock) :
+public sealed class ProfileHandlers(IAssistantData data, PreferenceReadCache cache, TimeProvider clock) :
     IRequestHandler<GetProfile, Result<ProfileView>>, IRequestHandler<SaveProfile, Result<Unit>>
 {
     private static readonly IValidator<ProfileView> Validator = new InlineValidator<ProfileView>
@@ -33,9 +33,13 @@ public sealed class ProfileHandlers(IAssistantData data, TimeProvider clock) :
 
     public async Task<Result<ProfileView>> Handle(GetProfile request, CancellationToken cancellationToken)
     {
-        var profile = await data.FirstAsync(data.Query<PersonalizationProfile>()
-            .Where(profile => profile.UserId == request.UserId), cancellationToken);
-        return Result<ProfileView>.Ok(ProfileView.From(profile ?? new PersonalizationProfile { UserId = request.UserId }));
+        var profile = await cache.ProfileAsync(request.UserId, async () =>
+        {
+            var record = await data.FirstAsync(data.Query<PersonalizationProfile>()
+                .Where(profile => profile.UserId == request.UserId), cancellationToken);
+            return ProfileView.From(record ?? new PersonalizationProfile { UserId = request.UserId });
+        });
+        return Result<ProfileView>.Ok(profile);
     }
 
     public async Task<Result<Unit>> Handle(SaveProfile request, CancellationToken cancellationToken)
@@ -43,7 +47,7 @@ public sealed class ProfileHandlers(IAssistantData data, TimeProvider clock) :
         var validation = await Validator.ValidateAsync(request.Profile, cancellationToken);
         if (!validation.IsValid) return Result<Unit>.Invalid(validation.ToDictionary());
 
-        return await data.ForUserAsync(request.UserId, async ct =>
+        var result = await data.ForUserAsync(request.UserId, async ct =>
         {
             var profile = await data.FirstAsync(data.Query<PersonalizationProfile>(true)
                 .Where(profile => profile.UserId == request.UserId), ct);
@@ -56,6 +60,8 @@ public sealed class ProfileHandlers(IAssistantData data, TimeProvider clock) :
             await data.SaveAsync(ct);
             return Result<Unit>.Ok(Unit.Value);
         }, cancellationToken);
+        if (result.IsSuccess) cache.InvalidateProfiles();
+        return result;
     }
 
     private static void Apply(PersonalizationProfile profile, ProfileView input, DateTimeOffset now)
