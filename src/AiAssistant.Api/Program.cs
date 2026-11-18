@@ -4,6 +4,7 @@ using AiAssistant.Api.Security;
 using AiAssistant.Application.Ai;
 using AiAssistant.Application.Auth;
 using AiAssistant.Application.Chats;
+using AiAssistant.Application.Memory;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Application.Personalization;
 using AiAssistant.Infrastructure.Persistence;
@@ -24,7 +25,10 @@ builder.Services.AddSingleton<GenerationStops>();
 builder.Services.AddSingleton<IGenerationEvents, HubGenerationEvents>();
 builder.Services.AddScoped<GenerationProcessor>();
 builder.Services.AddHostedService<GenerationWorker>();
+builder.Services.AddScoped<FollowUpProcessor>();
+builder.Services.AddHostedService<FollowUpWorker>();
 builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
+builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("postgres");
 builder.Services.AddSingleton(TimeProvider.System);
 var postgres = builder.Configuration.GetConnectionString("Postgres")

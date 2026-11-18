@@ -1,7 +1,9 @@
 namespace AiAssistant.Application.Ai;
 
 public sealed record AiMessage(string Role, string Content);
-public sealed record AiRequest(string Model, IReadOnlyList<AiMessage> Messages, double Temperature = 0.5, int MaxTokens = 1200);
+public enum AiTask { Chat, ExtractMemory, Summarize }
+public sealed record AiRequest(string Model, IReadOnlyList<AiMessage> Messages, double Temperature = 0.5,
+    int MaxTokens = 1200, AiTask Purpose = AiTask.Chat);
 public sealed record AiUsage(int PromptTokens, int CompletionTokens);
 public sealed record AiReply(string Content, AiUsage? Usage);
 public sealed record AiChunk(string? Content, AiUsage? Usage = null);

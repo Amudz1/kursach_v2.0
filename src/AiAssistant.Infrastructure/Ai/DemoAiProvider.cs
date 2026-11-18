@@ -1,14 +1,25 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using AiAssistant.Application.Ai;
 
 namespace AiAssistant.Infrastructure.Ai;
 
-public sealed class DemoAiProvider : IAiProvider
+public sealed partial class DemoAiProvider : IAiProvider
 {
     public Task<AiReply> CompleteAsync(AiRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var question = request.Messages.Last(message => message.Role == "user").Content;
+        if (request.Purpose == AiTask.ExtractMemory)
+        {
+            var original = JsonSerializer.Deserialize<string>(question) ?? "";
+            var match = DemoFact().Match(original);
+            var facts = match.Success ? new[] { match.Value } : [];
+            return Task.FromResult(new AiReply(JsonSerializer.Serialize(facts), null));
+        }
+        if (request.Purpose == AiTask.Summarize)
+            return Task.FromResult(new AiReply("Демо: в ранней части диалога пользователь уточнял исходные условия.", null));
         var display = question.Length <= 110 ? question : question[..110] + "…";
         var profile = request.Messages.FirstOrDefault(message => message.Content.StartsWith("Параметры профиля:", StringComparison.Ordinal));
         var inEnglish = profile?.Content.Contains("\"language\":\"en\"", StringComparison.Ordinal) == true;
@@ -30,4 +41,7 @@ public sealed class DemoAiProvider : IAiProvider
         }
         yield return new(null, reply.Usage);
     }
+
+    [GeneratedRegex(@"(?i)(?:я изучаю|i am learning) [\p{L}\p{N}+#-]+")]
+    private static partial Regex DemoFact();
 }
