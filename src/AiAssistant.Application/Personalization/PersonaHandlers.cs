@@ -19,7 +19,7 @@ public sealed class PersonaHandlers(IAssistantData data, PersonaAccess access, P
     IRequestHandler<ListPersonas, Result<IReadOnlyList<PersonaView>>>,
     IRequestHandler<SavePersona, Result<Guid>>, IRequestHandler<DeletePersona, Result<Unit>>
 {
-    private static readonly IValidator<PersonaInput> Validator = new InlineValidator<PersonaInput>
+    internal static readonly IValidator<PersonaInput> Validator = new InlineValidator<PersonaInput>
     {
         value => value.RuleFor(persona => persona.Name).NotEmpty().MaximumLength(80),
         value => value.RuleFor(persona => persona.Description).NotNull().MaximumLength(500),
@@ -79,7 +79,7 @@ public sealed class PersonaHandlers(IAssistantData data, PersonaAccess access, P
     private Task<Persona?> FindOwnedAsync(Guid userId, Guid personaId, CancellationToken cancellationToken) =>
         data.FirstAsync(data.Query<Persona>(true).Where(persona => persona.Id == personaId && persona.OwnerId == userId), cancellationToken);
 
-    private static void Update(Persona persona, PersonaInput input)
+    internal static void Update(Persona persona, PersonaInput input)
     {
         persona.Name = input.Name.Trim();
         persona.Description = input.Description.Trim();

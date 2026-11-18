@@ -27,6 +27,7 @@ watch(() => account.account, (value, previous) => {
     </RouterLink>
     <nav aria-label="Основная навигация">
       <RouterLink v-for="item in nav" :key="item.to" :to="item.to">{{ item.label }}</RouterLink>
+      <RouterLink v-if="account.account.role === 'Admin'" to="/admin">Администрирование</RouterLink>
     </nav>
     <RouterLink class="account-link" to="/profile">
       <span class="avatar" aria-hidden="true">{{ account.account.username.slice(0, 1).toUpperCase() }}</span>

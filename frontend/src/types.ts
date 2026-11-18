@@ -6,6 +6,13 @@ export type Usage = {
   remainingPrompts: number | null
 }
 
+export type Statistics = { days: number; requests: number; activeUsers: number; promptTokens: number; completionTokens: number
+  positiveShare: number | null; meanRating: number | null; usage: Usage | null
+  byModel: { label: string; count: number }[]; byPersona: { label: string; count: number }[] }
+export type AdminUser = { id: string; username: string; email: string; role: 'Admin' | 'User'; isBlocked: boolean; planCode: string }
+export type AdminPersona = { id: string; settings: { profile: PersonaInput; model: string | null; isActive: boolean } }
+export type AdminPlan = { id: string; settings: Omit<Plan, 'id'> & { sortOrder: number; isActive: boolean } }
+
 export type Account = {
   id: string
   username: string

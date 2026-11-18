@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { api, explain } from '../api'
 import { useSession } from '../session'
+import StatisticsPanel from '../components/StatisticsPanel.vue'
+import type { Statistics } from '../types'
 
 const session = useSession()
 const router = useRouter()
@@ -14,6 +16,17 @@ const error = ref('')
 const success = ref('')
 const busy = ref(false)
 const deletionError = ref('')
+const statistics = ref<Statistics>()
+const days = ref(30)
+const statsError = ref('')
+const statsLoading = ref(false)
+async function loadStatistics() {
+  statsError.value = ''; statsLoading.value = true
+  try { statistics.value = await api<Statistics>(`/me/stats?days=${days.value}`) }
+  catch (reason) { statsError.value = explain(reason) }
+  finally { statsLoading.value = false }
+}
+onMounted(loadStatistics)
 async function updateEmail() {
   error.value = ''; success.value = ''; busy.value = true
   try { await api('/me/email', { method: 'PUT', body: email }); email.password = ''; await session.reload(); success.value = 'Email обновлён.' }
@@ -75,6 +88,15 @@ async function remove() {
         <button class="text-button danger-text" @click="removePassword = ''; deletionError = ''; dialog?.showModal()">Удалить аккаунт</button>
       </aside>
     </div>
+    <section class="profile-stats stack" aria-labelledby="personal-stats">
+      <h2 id="personal-stats">Личная статистика</h2>
+      <label class="period">Период <select v-model.number="days" aria-label="Период" @change="loadStatistics">
+        <option :value="7">7 дней</option><option :value="30">30 дней</option><option :value="90">90 дней</option>
+      </select></label>
+      <p v-if="statsLoading" class="muted" role="status">Загружаем статистику…</p>
+      <p v-if="statsError" class="notice danger" role="alert">{{ statsError }} <button class="text-button" @click="loadStatistics">Повторить</button></p>
+      <StatisticsPanel v-if="statistics" :data="statistics" />
+    </section>
     <dialog ref="dialog" aria-labelledby="delete-account">
       <form class="stack" @submit.prevent="remove"><h2 id="delete-account">Удалить аккаунт?</h2>
         <p>Будут удалены диалоги, файлы, сохранённые факты и настройки.</p>

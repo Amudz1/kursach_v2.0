@@ -1,6 +1,7 @@
 using AiAssistant.Api.Ai;
 using AiAssistant.Api.Realtime;
 using AiAssistant.Api.Security;
+using AiAssistant.Application.Administration;
 using AiAssistant.Application.Ai;
 using AiAssistant.Application.Auth;
 using AiAssistant.Application.Billing;
@@ -27,6 +28,10 @@ builder.Services.AddSingleton<IAttachmentStorage, LocalAttachmentStorage>();
 builder.Services.AddScoped<AttachmentLifecycle>();
 builder.Services.AddHostedService<AttachmentCleanupWorker>();
 builder.Services.AddScoped<PlanAccess>();
+builder.Services.AddScoped<SubscriptionWriter>();
+builder.Services.AddScoped<AdminAccess>();
+builder.Services.AddSingleton(new ContextDiagnostics(
+    builder.Configuration.GetValue("Diagnostics:AllowContext", builder.Environment.IsDevelopment())));
 builder.Services.AddScoped<IUsageLimitService, UsageLimitService>();
 builder.Services.AddScoped<PersonaAccess>();
 builder.Services.AddScoped<IPromptContextBuilder, PromptContextBuilder>();

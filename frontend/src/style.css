@@ -223,6 +223,15 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: .88em; }
 .context-usage { display: grid; border-top: 1px solid var(--dark-rule); padding-top: .9rem; gap: .18rem; }
 .context-usage strong { font-family: var(--serif); color: var(--accent); font-size: 2.7rem; line-height: 1; font-weight: 500; }
 .context-usage span { color: var(--muted); font-size: .84rem; }
+.admin-nav, .profile-stats { margin: 1.2rem 0; }
+.period { width: min(100%, 230px); }
+.stats { display: grid; gap: 1rem; }
+.stat-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--sheet); border: 1px solid var(--rule); }
+.stat-strip > div { display: grid; align-content: start; gap: .35rem; min-width: 0; padding: .85rem; border-right: 1px solid var(--rule); }
+.stat-strip > div:last-child { border-right: 0; }
+.stat-strip strong { color: var(--accent); font: 500 clamp(1.5rem, 4vw, 2.6rem)/1 var(--serif); overflow-wrap: anywhere; }
+.stat-strip span { font-size: .78rem; color: var(--muted); }
+.account-record select { width: auto; max-width: 100%; }
 
 @media (max-width: 1060px) {
   .topbar { padding-inline: 1rem; gap: 1.05rem; }
@@ -259,6 +268,8 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: .88em; }
   .auth-shell { grid-template-columns: 1fr; min-height: 0; }
   .auth-side { gap: 1.1rem; }
   .auth-decoration { display: none; }
+  .stat-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat-strip > div { border-bottom: 1px solid var(--rule); }
 }
 @media (max-width: 425px) {
   .record { flex-direction: column; gap: .4rem; }

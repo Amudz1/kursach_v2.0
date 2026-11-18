@@ -1,3 +1,4 @@
+using AiAssistant.Application.Administration;
 using AiAssistant.Application.Auth;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -13,6 +14,10 @@ public sealed class AccountController(ISender sender) : ApplicationController
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken cancellationToken) =>
         From(await sender.Send(new GetAccount(CurrentUserId), cancellationToken));
+
+    [HttpGet("stats")]
+    public async Task<IActionResult> Stats(CancellationToken cancellationToken, int days = 30) =>
+        From(await sender.Send(new GetPersonalStatistics(CurrentUserId, days), cancellationToken));
 
     [HttpPut("email")]
     [EnableRateLimiting("account")]

@@ -11,7 +11,7 @@ public sealed record ListPlans : IRequest<Result<IReadOnlyList<PlanView>>>;
 public sealed record PurchasePlan(Guid UserId, Guid PlanId, Guid RequestId, string CardNumber, string CardHolder,
     string ExpireMonth, string ExpireYear, string Cvv) : IRequest<Result<Guid>>;
 
-public sealed class BillingHandlers(IAssistantData data, TimeProvider clock) :
+public sealed class BillingHandlers(IAssistantData data, SubscriptionWriter subscriptions, TimeProvider clock) :
     IRequestHandler<ListPlans, Result<IReadOnlyList<PlanView>>>, IRequestHandler<PurchasePlan, Result<Guid>>
 {
     public async Task<Result<IReadOnlyList<PlanView>>> Handle(ListPlans request, CancellationToken cancellationToken)
@@ -41,15 +41,7 @@ public sealed class BillingHandlers(IAssistantData data, TimeProvider clock) :
             var plan = await data.FirstAsync(data.Query<SubscriptionPlan>()
                 .Where(plan => plan.IsActive && plan.Id == request.PlanId && plan.DurationDays > 0 && plan.Code != "Free"), ct);
             if (plan is null) return Result<Guid>.Fail(ErrorKind.NotFound, "plan_not_found", "Платный тариф недоступен.");
-            var previous = await data.FirstAsync(data.Query<Subscription>(true).Where(item => item.UserId == request.UserId &&
-                item.Status == SubscriptionStatus.Active), ct);
-            if (previous is not null)
-            {
-                previous.Status = previous.EndsAt <= now ? SubscriptionStatus.Expired : SubscriptionStatus.Replaced;
-                await data.SaveAsync(ct);
-            }
-
-            data.Add(new Subscription { UserId = request.UserId, PlanId = plan.Id, StartsAt = now, EndsAt = now.AddDays(plan.DurationDays) });
+            await subscriptions.ReplaceAsync(request.UserId, plan, now, ct);
             var transaction = new Transaction
             {
                 UserId = request.UserId, PlanId = plan.Id, RequestId = request.RequestId, Amount = plan.Price,
