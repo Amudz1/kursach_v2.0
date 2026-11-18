@@ -1,3 +1,5 @@
+using AiAssistant.Api.Security;
+using AiAssistant.Application.Auth;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -5,6 +7,9 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
+builder.Services.AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<RegisterAccount>());
+builder.Services.AddAssistantAuth(builder.Configuration, builder.Environment);
+builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("postgres");
 builder.Services.AddSingleton(TimeProvider.System);
 var postgres = builder.Configuration.GetConnectionString("Postgres")
@@ -25,6 +30,9 @@ if (builder.Configuration.GetValue<bool>("Database:MigrateOnStart") ||
 }
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
 app.MapHealthChecks("/health");
 app.MapControllers();
 app.Run();

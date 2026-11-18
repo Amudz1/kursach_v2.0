@@ -1,5 +1,7 @@
 using AiAssistant.Application.Persistence;
+using AiAssistant.Application.Common;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace AiAssistant.Infrastructure.Persistence;
 
@@ -22,7 +24,18 @@ public sealed class AssistantData(AssistantDbContext context) : IAssistantData
 
     public void Remove<TEntity>(TEntity entity) where TEntity : class => context.Remove(entity);
 
-    public Task<int> SaveAsync(CancellationToken cancellationToken) => context.SaveChangesAsync(cancellationToken);
+    public async Task<int> SaveAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (
+            exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            throw new DataConflictException(exception);
+        }
+    }
 
     public async Task<T> ForUserAsync<T>(Guid userId, Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken)
     {
