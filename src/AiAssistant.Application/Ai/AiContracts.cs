@@ -5,7 +5,11 @@ public sealed record AiRequest(string Model, IReadOnlyList<AiMessage> Messages, 
 public sealed record AiUsage(int PromptTokens, int CompletionTokens);
 public sealed record AiReply(string Content, AiUsage? Usage);
 public sealed record AiChunk(string? Content, AiUsage? Usage = null);
-public sealed record AiDefaults(string Model, bool Demo);
+public sealed record AiDefaults(string Model, bool Demo, int ContextBudget = 16000, IReadOnlyDictionary<string, int>? ModelBudgets = null)
+{
+    public int BudgetFor(string model) =>
+        ModelBudgets is not null && ModelBudgets.TryGetValue(model, out var budget) ? budget : ContextBudget;
+}
 
 /// <summary>Generates assistant responses using the configured model provider.</summary>
 public interface IAiProvider

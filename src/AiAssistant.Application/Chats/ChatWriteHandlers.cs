@@ -1,11 +1,12 @@
 using AiAssistant.Application.Common;
 using AiAssistant.Application.Persistence;
+using AiAssistant.Application.Personalization;
 using AiAssistant.Domain;
 using MediatR;
 
 namespace AiAssistant.Application.Chats;
 
-public sealed class ChatWriteHandlers(IAssistantData data, ChatAccess access, TimeProvider clock) :
+public sealed class ChatWriteHandlers(IAssistantData data, ChatAccess access, PersonaAccess personas, TimeProvider clock) :
     IRequestHandler<CreateChat, Result<Guid>>,
     IRequestHandler<PatchChat, Result<Unit>>,
     IRequestHandler<DeleteChat, Result<Unit>>
@@ -14,7 +15,10 @@ public sealed class ChatWriteHandlers(IAssistantData data, ChatAccess access, Ti
         data.ForUserAsync(request.UserId, async ct =>
         {
             var now = clock.GetUtcNow();
-            var chat = new Chat { UserId = request.UserId, CreatedAt = now, LastMessageAt = now };
+            if (request.PersonaId is { } personaId && await personas.FindAsync(request.UserId, personaId, ct) is null)
+                return Result<Guid>.Fail(ErrorKind.NotFound, "persona_not_found", "Персона недоступна.");
+            var persona = await personas.ResolveAsync(request.UserId, request.PersonaId, ct);
+            var chat = new Chat { UserId = request.UserId, PersonaId = persona?.Id, CreatedAt = now, LastMessageAt = now };
             data.Add(chat);
             await data.SaveAsync(ct);
             return Result<Guid>.Ok(chat.Id);
@@ -33,6 +37,12 @@ public sealed class ChatWriteHandlers(IAssistantData data, ChatAccess access, Ti
                 chat.Title = title;
             }
             if (request.IsPinned.HasValue) chat.IsPinned = request.IsPinned.Value;
+            if (request.PersonaId is { } personaId)
+            {
+                if (await personas.FindAsync(request.UserId, personaId, ct) is null)
+                    return Result<Unit>.Fail(ErrorKind.NotFound, "persona_not_found", "Персона недоступна.");
+                chat.PersonaId = personaId;
+            }
             await data.SaveAsync(ct);
             return Result<Unit>.Ok(Unit.Value);
         }, cancellationToken);

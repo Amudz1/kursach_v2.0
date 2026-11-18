@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using AiAssistant.Application.Ai;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Domain;
@@ -7,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace AiAssistant.Application.Chats;
 
 public sealed class GenerationProcessor(IAssistantData data, IAiProvider provider, GenerationStops stops,
-    IGenerationEvents events, ILogger<GenerationProcessor> logger)
+    IGenerationEvents events, IPromptContextBuilder context, ILogger<GenerationProcessor> logger)
 {
     public async Task<bool> ProcessNextAsync(CancellationToken cancellationToken)
     {
@@ -16,7 +17,7 @@ public sealed class GenerationProcessor(IAssistantData data, IAiProvider provide
             join chat in data.Query<Chat>() on message.ChatId equals chat.Id
             where message.Role == MessageRole.Assistant && message.Status == GenerationStatus.Pending
             orderby message.CreatedAt, message.Id
-            select new WorkItem(message.Id, chat.Id, chat.UserId, message.Model!),
+            select new WorkItem(message.Id, chat.Id, chat.UserId),
             cancellationToken);
         if (next is null) return false;
 
@@ -66,7 +67,11 @@ public sealed class GenerationProcessor(IAssistantData data, IAiProvider provide
         var status = GenerationStatus.Completed;
         try
         {
-            var request = await ReadRequestAsync(item, timeout.Token);
+            var request = await context.BuildAsync(item.UserId, item.ChatId, item.MessageId, timeout.Token);
+            var message = await FindAsync(item.MessageId, true, timeout.Token);
+            if (message is null) return;
+            message.ContextSnapshot = JsonSerializer.Serialize(request.Messages);
+            await data.SaveAsync(timeout.Token);
             await events.StartedAsync(item.UserId, item.ChatId, item.MessageId, timeout.Token);
             await foreach (var chunk in provider.StreamAsync(request, timeout.Token).WithCancellation(timeout.Token))
             {
@@ -106,15 +111,6 @@ public sealed class GenerationProcessor(IAssistantData data, IAiProvider provide
             await events.FinishedAsync(item.UserId, item.ChatId, saved, usage, serviceToken);
     }
 
-    private async Task<AiRequest> ReadRequestAsync(WorkItem item, CancellationToken cancellationToken)
-    {
-        var history = await data.ListAsync(data.Query<Message>().Where(message => message.ChatId == item.ChatId &&
-                message.Status == GenerationStatus.Completed).OrderByDescending(message => message.CreatedAt)
-            .ThenByDescending(message => message.Id).Take(20), cancellationToken);
-        return new(item.Model, history.AsEnumerable().Reverse()
-            .Select(message => new AiMessage(message.Role.ToString().ToLowerInvariant(), message.Content)).ToArray());
-    }
-
     private Task<MessageView?> FinalizeAsync(WorkItem item, string content, AiUsage? usage, GenerationStatus status,
         string? error, CancellationToken cancellationToken) =>
         data.ForUserAsync<MessageView?>(item.UserId, async ct =>
@@ -136,5 +132,5 @@ public sealed class GenerationProcessor(IAssistantData data, IAiProvider provide
     private Task<Message?> FindAsync(Guid id, bool tracked, CancellationToken cancellationToken) =>
         data.FirstAsync(data.Query<Message>(tracked).Where(message => message.Id == id), cancellationToken);
 
-    private sealed record WorkItem(Guid MessageId, Guid ChatId, Guid UserId, string Model);
+    private sealed record WorkItem(Guid MessageId, Guid ChatId, Guid UserId);
 }

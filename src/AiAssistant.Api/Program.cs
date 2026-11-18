@@ -1,9 +1,11 @@
 using AiAssistant.Api.Ai;
 using AiAssistant.Api.Realtime;
 using AiAssistant.Api.Security;
+using AiAssistant.Application.Ai;
 using AiAssistant.Application.Auth;
 using AiAssistant.Application.Chats;
 using AiAssistant.Application.Persistence;
+using AiAssistant.Application.Personalization;
 using AiAssistant.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,6 +17,8 @@ builder.Services.AddAssistantAuth(builder.Configuration, builder.Environment);
 builder.Services.AddAssistantAi(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<ChatAccess>();
 builder.Services.AddScoped<ChatSubmission>();
+builder.Services.AddScoped<PersonaAccess>();
+builder.Services.AddScoped<IPromptContextBuilder, PromptContextBuilder>();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<GenerationStops>();
 builder.Services.AddSingleton<IGenerationEvents, HubGenerationEvents>();

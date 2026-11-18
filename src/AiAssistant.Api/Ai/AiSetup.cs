@@ -14,11 +14,17 @@ internal static class AiSetup
     {
         var mode = settings["Ai:Mode"] ?? "OpenRouter";
         var model = settings["Ai:Model"] ?? "deepseek/deepseek-chat";
+        var budget = settings.GetValue("Ai:ContextBudget", 16000);
+        var budgets = settings.GetSection("Ai:ModelBudgets").GetChildren()
+            .ToDictionary(item => item["Model"] ?? throw new InvalidOperationException("Задайте Ai:ModelBudgets:Model."),
+                item => item.GetValue<int>("Tokens"), StringComparer.Ordinal);
+        if (budget < 4000 || budgets.Values.Any(value => value < 4000))
+            throw new InvalidOperationException("Бюджет контекста должен составлять минимум 4000 токенов.");
         if (mode.Equals("Demo", StringComparison.OrdinalIgnoreCase))
         {
             if (!environment.IsDevelopment())
                 throw new InvalidOperationException("Режим Ai:Mode=Demo доступен в Development.");
-            services.AddSingleton(new AiDefaults(model, true));
+            services.AddSingleton(new AiDefaults(model, true, budget, budgets));
             services.AddSingleton<IAiProvider, DemoAiProvider>();
             return services;
         }
@@ -29,7 +35,7 @@ internal static class AiSetup
         if (string.IsNullOrWhiteSpace(key)) key = settings["OPENROUTER_API_KEY"];
         if (string.IsNullOrWhiteSpace(key)) throw new InvalidOperationException("Задайте OpenRouter:ApiKey.");
 
-        services.AddSingleton(new AiDefaults(model, false));
+        services.AddSingleton(new AiDefaults(model, false, budget, budgets));
         services.AddHttpClient<IAiProvider, OpenRouterProvider>(client =>
         {
             client.BaseAddress = new Uri("https://openrouter.ai/api/v1/");

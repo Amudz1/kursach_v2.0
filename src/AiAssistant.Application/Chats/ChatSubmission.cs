@@ -2,13 +2,14 @@ using System.Text.RegularExpressions;
 using AiAssistant.Application.Ai;
 using AiAssistant.Application.Common;
 using AiAssistant.Application.Persistence;
+using AiAssistant.Application.Personalization;
 using AiAssistant.Domain;
 
 namespace AiAssistant.Application.Chats;
 
 public sealed record QueuedMessage(Guid Id, bool IsNew);
 
-public sealed partial class ChatSubmission(IAssistantData data, ChatAccess access, AiDefaults defaults, TimeProvider clock)
+public sealed partial class ChatSubmission(IAssistantData data, ChatAccess access, PersonaAccess personas, TimeProvider clock)
 {
     public async Task<Result<QueuedMessage>> PrepareAsync(SendChatMessage request, CancellationToken cancellationToken)
     {
@@ -31,10 +32,11 @@ public sealed partial class ChatSubmission(IAssistantData data, ChatAccess acces
 
             if (!await data.AnyAsync(messages, ct) && chat.Title == "Новый чат") chat.Title = Title(text);
             var now = clock.GetUtcNow();
+            var persona = await personas.ResolveAsync(request.UserId, chat.PersonaId, ct);
             var userMessage = new Message { ChatId = chat.Id, Role = MessageRole.User, Content = text, CreatedAt = now };
             var assistant = new Message
             {
-                ChatId = chat.Id, Role = MessageRole.Assistant, Content = "", Model = defaults.Model,
+                ChatId = chat.Id, PersonaId = persona?.Id, Role = MessageRole.Assistant, Content = "", Model = personas.ModelFor(persona),
                 Status = GenerationStatus.Pending, CreatedAt = now.AddMicroseconds(1),
                 TriggerMessageId = userMessage.Id, RequestId = request.RequestId
             };

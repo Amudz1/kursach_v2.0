@@ -10,7 +10,11 @@ public sealed class DemoAiProvider : IAiProvider
         cancellationToken.ThrowIfCancellationRequested();
         var question = request.Messages.Last(message => message.Role == "user").Content;
         var display = question.Length <= 110 ? question : question[..110] + "…";
-        var content = $"**Демонстрационный ответ**\n\nВы спросили: {display}\n\nУточните ожидаемый результат, и разберём задачу по шагам.";
+        var profile = request.Messages.FirstOrDefault(message => message.Content.StartsWith("Параметры профиля:", StringComparison.Ordinal));
+        var inEnglish = profile?.Content.Contains("\"language\":\"en\"", StringComparison.Ordinal) == true;
+        var content = inEnglish
+            ? $"**Demo response**\n\nYou asked: {display}\n\nTell me your goal and I can give you a step-by-step example."
+            : $"**Демонстрационный ответ**\n\nВы спросили: {display}\n\nУточните ожидаемый результат, и разберём задачу по шагам.";
         return Task.FromResult(new AiReply(content, new(question.Length / 4, content.Length / 4)));
     }
 

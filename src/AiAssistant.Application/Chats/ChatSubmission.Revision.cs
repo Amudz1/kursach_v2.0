@@ -39,9 +39,10 @@ public sealed partial class ChatSubmission
                 chat.SummaryUntilMessageId = null;
             }
 
+            var persona = await personas.ResolveAsync(request.UserId, chat.PersonaId, ct);
             var answer = new Message
             {
-                ChatId = chat.Id, Role = MessageRole.Assistant, Content = "", Model = defaults.Model,
+                ChatId = chat.Id, PersonaId = persona?.Id, Role = MessageRole.Assistant, Content = "", Model = personas.ModelFor(persona),
                 Status = GenerationStatus.Pending, CreatedAt = clock.GetUtcNow(),
                 TriggerMessageId = user.Id, RequestId = request.RequestId
             };
