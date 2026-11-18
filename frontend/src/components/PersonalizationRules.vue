@@ -72,7 +72,7 @@ function changeRule(key: 'length' | 'format' | 'instructions', value: string) {
 .task-list button { display: flex; justify-content: space-between; align-items: center; gap: .3rem; min-height: 39px;
   padding: .48rem .6rem; text-align: left; font-size: .83rem; font-weight: 620; color: var(--ink);
   background: transparent; border: 1px solid transparent; border-radius: 7px; }
-.task-list button:hover, .task-list button[aria-pressed=true] { background: #f1eadf; }
+.task-list button:hover, .task-list button[aria-pressed=true] { background: var(--inset); }
 .task-list button[aria-pressed=true] { border-color: var(--rule); }
 .custom-mark { flex: 0 0 auto; width: .42rem; height: .42rem; border-radius: 50%; background: var(--accent); }
 .task-editor { padding: .85rem; border: 1px solid var(--rule); border-radius: 9px; }

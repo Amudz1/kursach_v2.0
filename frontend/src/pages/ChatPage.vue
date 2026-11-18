@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useChat } from '../use-chat'
 import { markdown } from '../markdown'
@@ -11,7 +11,16 @@ const {
   loadChats, loadMessages, newChat, patch, remove, changeDraft, chooseFiles, removeFile, send, stop, revise, rate,
   decide, download,
 } = useChat()
-const drawer = ref<HTMLDetailsElement>()
+const compactLayout = window.matchMedia('(max-width: 780px)')
+const compact = ref(compactLayout.matches)
+const desktopHistory = ref(true)
+const mobileHistory = ref(false)
+const historyPanel = ref<HTMLElement>()
+const historyToggle = ref<HTMLButtonElement>()
+const historyVisible = computed(() => compact.value ? mobileHistory.value : desktopHistory.value)
+const historyAction = computed(() => historyVisible.value ? 'Скрыть список диалогов' : 'Показать список диалогов')
+const historyKey = 'budz.history'
+try { desktopHistory.value = localStorage.getItem(historyKey) !== 'hidden' } catch { /* Use the default layout. */ }
 const picker = ref<HTMLInputElement>()
 const dialog = ref<HTMLDialogElement>()
 const operation = ref<'rename' | 'delete' | 'edit'>('rename')
@@ -63,8 +72,35 @@ function time(value: string) {
   return new Intl.DateTimeFormat('ru', { hour: '2-digit', minute: '2-digit' }).format(new Date(value))
 }
 
+function setHistory(visible: boolean) {
+  if (compact.value) mobileHistory.value = visible
+  else {
+    desktopHistory.value = visible
+    try { localStorage.setItem(historyKey, visible ? 'shown' : 'hidden') } catch { /* Keep the choice for this page. */ }
+  }
+}
+async function toggleHistory() {
+  const opening = !historyVisible.value
+  setHistory(opening)
+  if (opening) {
+    await nextTick()
+    historyPanel.value?.focus()
+  }
+}
+function hideHistory() {
+  setHistory(false)
+  historyToggle.value?.focus()
+}
 function closeMobileHistory() {
-  if (window.matchMedia('(max-width: 780px)').matches && drawer.value) drawer.value.open = false
+  if (compact.value && mobileHistory.value) hideHistory()
+}
+function startNewChat() {
+  closeMobileHistory()
+  void newChat()
+}
+function resizeLayout(event: MediaQueryListEvent) {
+  compact.value = event.matches
+  mobileHistory.value = false
 }
 function resizeComposer() {
   const input = composer.value
@@ -77,7 +113,7 @@ function resizeComposer() {
 let sizeObserver: ResizeObserver | undefined
 watch(draft, resizeComposer, { flush: 'post' })
 onMounted(() => {
-  closeMobileHistory()
+  compactLayout.addEventListener('change', resizeLayout)
   resizeComposer()
   if (!composer.value) return
   let previousWidth = composer.value.clientWidth
@@ -88,37 +124,42 @@ onMounted(() => {
   })
   sizeObserver.observe(composer.value)
 })
-onUnmounted(() => sizeObserver?.disconnect())
+onUnmounted(() => {
+  compactLayout.removeEventListener('change', resizeLayout)
+  sizeObserver?.disconnect()
+})
 </script>
 
 <template>
-  <section class="workspace" aria-label="Диалоги Budz">
-    <details ref="drawer" class="history" open>
-      <summary>Диалоги</summary>
-      <div class="history-body">
-        <div class="history-heading"><h2>Диалоги</h2><button class="secondary square" @click="newChat" aria-label="Новый диалог">+</button></div>
-        <form class="search-form" @submit.prevent="loadChats()">
-          <label class="sr-only" for="chat-search">Поиск по диалогам</label>
-          <input id="chat-search" v-model="search" type="search" maxlength="120" placeholder="Поиск по диалогам">
-          <button class="text-button" type="submit">Найти</button>
-        </form>
-        <nav aria-label="История диалогов" class="thread-list">
-          <RouterLink v-for="chat in chats" :key="chat.id" :to="`/chats/${chat.id}`" @click="closeMobileHistory">
-            <span v-if="chat.isPinned" class="pin-mark" aria-label="Закреплён">◆</span>
-            <span>{{ chat.title }}</span>
-          </RouterLink>
-          <p v-if="!chats.length" class="muted">Диалогов пока нет.</p>
-        </nav>
-        <button v-if="chatsHaveMore" class="plain-button" @click="loadChats(false)">Ещё диалоги</button>
-      </div>
-    </details>
+  <section class="workspace" :class="{ 'history-open': historyVisible }" aria-label="Диалоги Budz">
+    <aside v-show="historyVisible" id="chat-history" ref="historyPanel" class="history" tabindex="-1" aria-labelledby="history-heading" @keydown.esc.stop="hideHistory">
+      <h2 id="history-heading">Диалоги</h2>
+      <form class="search-form" @submit.prevent="loadChats()">
+        <label class="sr-only" for="chat-search">Поиск по диалогам</label>
+        <input id="chat-search" v-model="search" type="search" maxlength="120" placeholder="Поиск по диалогам">
+        <button class="text-button" type="submit">Найти</button>
+      </form>
+      <nav aria-label="История диалогов" class="thread-list">
+        <RouterLink v-for="chat in chats" :key="chat.id" :to="`/chats/${chat.id}`" @click="closeMobileHistory">
+          <span v-if="chat.isPinned" class="pin-mark" aria-label="Закреплён">◆</span>
+          <span>{{ chat.title }}</span>
+        </RouterLink>
+        <p v-if="!chats.length" class="muted">Диалогов пока нет.</p>
+      </nav>
+      <button v-if="chatsHaveMore" class="plain-button" @click="loadChats(false)">Ещё диалоги</button>
+    </aside>
 
     <div class="conversation">
       <header class="conversation-header">
+        <button ref="historyToggle" type="button" class="chat-control history-toggle" :aria-label="historyAction" :title="historyAction"
+          :aria-expanded="historyVisible" aria-controls="chat-history" @click="toggleHistory">
+          <span class="history-icon" aria-hidden="true"></span>
+        </button>
         <div class="conversation-heading">
           <h1>{{ selected?.title ?? (selectedId ? 'Диалог' : 'Новый диалог') }}</h1>
           <p v-if="selectedId" class="status-line"><span :class="{ online: linked }"></span>{{ linked ? 'Подключено' : 'Подключаемся к чату' }}</p>
         </div>
+        <button type="button" class="chat-control new-chat-control" aria-label="Новый диалог" title="Новый диалог" @click="startNewChat"><span aria-hidden="true">+</span></button>
         <details ref="chatMenu" class="chat-menu">
           <summary aria-label="Настройки диалога">•••</summary>
           <div class="chat-menu-panel">

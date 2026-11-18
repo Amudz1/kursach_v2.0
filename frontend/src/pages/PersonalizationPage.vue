@@ -160,7 +160,7 @@ onMounted(load)
 .editor-section h2 { margin-bottom: .32rem; font-size: clamp(1.25rem, 2.4vw, 1.75rem); }
 .presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .45rem; }
 .presets button { display: grid; gap: .25rem; align-content: start; padding: .78rem clamp(.48rem, 1.65vw, .85rem); text-align: left;
-  color: var(--ink); border: 1px solid var(--rule); border-radius: 9px; background: #f6efe3; }
+  color: var(--ink); border: 1px solid var(--rule); border-radius: 9px; background: var(--inset); }
 .presets button:hover, .presets button[aria-pressed=true] { background: var(--pale); border-color: var(--accent); }
 .presets strong { font-size: .92rem; overflow-wrap: anywhere; }
 .presets span { color: var(--muted); font-size: .78rem; line-height: 1.35; }
