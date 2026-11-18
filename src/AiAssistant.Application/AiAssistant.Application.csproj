@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../AiAssistant.Domain/AiAssistant.Domain.csproj" />
+  </ItemGroup>
+</Project>
