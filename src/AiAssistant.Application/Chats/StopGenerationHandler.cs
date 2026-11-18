@@ -1,4 +1,5 @@
 using AiAssistant.Application.Common;
+using AiAssistant.Application.Billing;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Domain;
 using MediatR;
@@ -7,7 +8,8 @@ namespace AiAssistant.Application.Chats;
 
 public sealed record StopGeneration(Guid UserId, Guid MessageId) : IRequest<Result<Unit>>;
 
-public sealed class StopGenerationHandler(IAssistantData data, ChatAccess access, GenerationStops stops, IGenerationEvents events)
+public sealed class StopGenerationHandler(IAssistantData data, ChatAccess access, GenerationStops stops,
+    IGenerationEvents events, IUsageLimitService usage)
     : IRequestHandler<StopGeneration, Result<Unit>>
 {
     public async Task<Result<Unit>> Handle(StopGeneration request, CancellationToken cancellationToken)
@@ -21,6 +23,8 @@ public sealed class StopGenerationHandler(IAssistantData data, ChatAccess access
 
             if (message.Status is GenerationStatus.Pending or GenerationStatus.Streaming)
             {
+                if (message.Status == GenerationStatus.Pending)
+                    await usage.FinishAsync(request.UserId, message.CreatedAt, true, 0, ct);
                 message.Status = GenerationStatus.Stopped;
                 await data.SaveAsync(ct);
             }

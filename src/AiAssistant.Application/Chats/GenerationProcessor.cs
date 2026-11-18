@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using AiAssistant.Application.Ai;
+using AiAssistant.Application.Billing;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Domain;
 using Microsoft.Extensions.Logging;
@@ -8,7 +9,7 @@ using Microsoft.Extensions.Logging;
 namespace AiAssistant.Application.Chats;
 
 public sealed class GenerationProcessor(IAssistantData data, IAiProvider provider, GenerationStops stops,
-    IGenerationEvents events, IPromptContextBuilder context, ILogger<GenerationProcessor> logger)
+    IGenerationEvents events, IPromptContextBuilder context, IUsageLimitService limits, ILogger<GenerationProcessor> logger)
 {
     public async Task<bool> ProcessNextAsync(CancellationToken cancellationToken)
     {
@@ -120,13 +121,15 @@ public sealed class GenerationProcessor(IAssistantData data, IAiProvider provide
             if (current is null) return null;
             var message = await FindAsync(item.MessageId, true, ct);
             if (message is null) return null;
-            message.Status = current.Status == GenerationStatus.Stopped ? GenerationStatus.Stopped : status;
+            message.Status = current.Status is GenerationStatus.Stopped or GenerationStatus.Superseded ? current.Status : status;
             message.Content = content;
             message.ErrorCode = message.Status == GenerationStatus.Failed ? error : null;
             message.PromptTokens = usage?.PromptTokens;
             message.CompletionTokens = usage?.CompletionTokens;
+            await limits.FinishAsync(item.UserId, message.CreatedAt, content.Length == 0 && status != GenerationStatus.Completed,
+                (long)(usage?.PromptTokens ?? 0) + (usage?.CompletionTokens ?? 0), ct);
             await data.SaveAsync(ct);
-            return ChatReadHandlers.ToView(message);
+            return message.Status == GenerationStatus.Superseded ? null : ChatReadHandlers.ToView(message);
         }, cancellationToken);
 
     private Task<Message?> FindAsync(Guid id, bool tracked, CancellationToken cancellationToken) =>

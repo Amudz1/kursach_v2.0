@@ -1,5 +1,5 @@
 using System.Text.RegularExpressions;
-using AiAssistant.Application.Ai;
+using AiAssistant.Application.Billing;
 using AiAssistant.Application.Common;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Application.Personalization;
@@ -9,7 +9,8 @@ namespace AiAssistant.Application.Chats;
 
 public sealed record QueuedMessage(Guid Id, bool IsNew);
 
-public sealed partial class ChatSubmission(IAssistantData data, ChatAccess access, PersonaAccess personas, TimeProvider clock)
+public sealed partial class ChatSubmission(IAssistantData data, ChatAccess access, PersonaAccess personas,
+    PlanAccess plans, IUsageLimitService usage, TimeProvider clock)
 {
     public async Task<Result<QueuedMessage>> PrepareAsync(SendChatMessage request, CancellationToken cancellationToken)
     {
@@ -33,10 +34,16 @@ public sealed partial class ChatSubmission(IAssistantData data, ChatAccess acces
             if (!await data.AnyAsync(messages, ct) && chat.Title == "Новый чат") chat.Title = Title(text);
             var now = clock.GetUtcNow();
             var persona = await personas.ResolveAsync(request.UserId, chat.PersonaId, ct);
+            var plan = await plans.ResolveAsync(request.UserId, ct);
+            var model = SelectModel(plan, persona, request.Model);
+            if (model is null)
+                return Result<QueuedMessage>.Fail(ErrorKind.Forbidden, "model_not_allowed", "Модель недоступна на вашем тарифе.");
+            if (!await usage.ReserveAsync(request.UserId, plan.DailyRequestLimit, now.AddMicroseconds(1), ct))
+                return LimitReached<QueuedMessage>();
             var userMessage = new Message { ChatId = chat.Id, Role = MessageRole.User, Content = text, CreatedAt = now };
             var assistant = new Message
             {
-                ChatId = chat.Id, PersonaId = persona?.Id, Role = MessageRole.Assistant, Content = "", Model = personas.ModelFor(persona),
+                ChatId = chat.Id, PersonaId = persona?.Id, Role = MessageRole.Assistant, Content = "", Model = model,
                 Status = GenerationStatus.Pending, CreatedAt = now.AddMicroseconds(1),
                 TriggerMessageId = userMessage.Id, RequestId = request.RequestId
             };
@@ -47,6 +54,16 @@ public sealed partial class ChatSubmission(IAssistantData data, ChatAccess acces
             return Result<QueuedMessage>.Ok(new(assistant.Id, true));
         }, cancellationToken);
     }
+
+    private string? SelectModel(SubscriptionPlan plan, Persona? persona, string? desired)
+    {
+        var model = desired ?? personas.ModelFor(persona);
+        if (plan.AllowedModels.Contains(model, StringComparer.Ordinal)) return model;
+        return desired is null ? plan.AllowedModels.FirstOrDefault() : null;
+    }
+
+    private static Result<T> LimitReached<T>() => Result<T>.Fail(ErrorKind.Limit, "daily_limit",
+        "Дневной лимит запросов исчерпан. Лимит обновится в полночь UTC.");
 
     private static string Title(string content)
     {

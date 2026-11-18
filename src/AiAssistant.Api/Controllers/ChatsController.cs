@@ -40,12 +40,12 @@ public sealed class ChatsController(ISender sender) : ApplicationController
     [EnableRateLimiting("chat")]
     public async Task<IActionResult> Send(Guid chatId, SendBody body, CancellationToken cancellationToken)
     {
-        var result = await sender.Send(new SendChatMessage(CurrentUserId, chatId, body.RequestId ?? Guid.NewGuid(), body.Content),
-            cancellationToken);
+        var result = await sender.Send(new SendChatMessage(CurrentUserId, chatId, body.RequestId ?? Guid.NewGuid(),
+            body.Content, body.Model), cancellationToken);
         return result.IsSuccess ? Accepted(new { id = result.Value }) : Failure(result.Error!);
     }
 
     public sealed record CreateBody(Guid? PersonaId);
     public sealed record PatchBody(string? Title, bool? IsPinned, Guid? PersonaId);
-    public sealed record SendBody(string Content, Guid? RequestId);
+    public sealed record SendBody(string Content, Guid? RequestId, string? Model);
 }

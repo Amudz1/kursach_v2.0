@@ -1,4 +1,5 @@
 using AiAssistant.Application.Common;
+using AiAssistant.Application.Billing;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Domain;
 using MediatR;
@@ -10,7 +11,7 @@ public sealed record ListMemories(Guid UserId) : IRequest<Result<IReadOnlyList<M
 public sealed record SaveMemory(Guid UserId, Guid? MemoryId, string Content, bool IsEnabled) : IRequest<Result<Guid>>;
 public sealed record DeleteMemory(Guid UserId, Guid MemoryId) : IRequest<Result<Unit>>;
 
-public sealed class MemoryHandlers(IAssistantData data, TimeProvider clock) :
+public sealed class MemoryHandlers(IAssistantData data, TimeProvider clock, PlanAccess plans) :
     IRequestHandler<ListMemories, Result<IReadOnlyList<MemoryView>>>, IRequestHandler<SaveMemory, Result<Guid>>,
     IRequestHandler<DeleteMemory, Result<Unit>>
 {
@@ -42,6 +43,9 @@ public sealed class MemoryHandlers(IAssistantData data, TimeProvider clock) :
 
             if (memory is null)
             {
+                var plan = await plans.ResolveAsync(request.UserId, ct);
+                if (await data.CountAsync(records, ct) >= plan.MaxMemories)
+                    return Result<Guid>.Fail(ErrorKind.Limit, "memory_limit", "Лимит фактов памяти вашего тарифа исчерпан.");
                 memory = new UserMemory { UserId = request.UserId, Content = content, NormalizedContent = normalized,
                     Source = MemorySource.Manual, CreatedAt = clock.GetUtcNow() };
                 data.Add(memory);

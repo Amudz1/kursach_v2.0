@@ -1,4 +1,5 @@
 using AiAssistant.Application.Common;
+using AiAssistant.Application.Billing;
 using MediatR;
 
 namespace AiAssistant.Application.Auth;
@@ -14,4 +15,4 @@ public sealed record ChangePassword(Guid UserId, string CurrentPassword, string 
     : IRequest<Result<Unit>>;
 public sealed record DeleteAccount(Guid UserId, string Password) : IRequest<Result<Unit>>;
 
-public sealed record AccountView(Guid Id, string Username, string Email, string Role, bool OnboardingCompleted);
+public sealed record AccountView(Guid Id, string Username, string Email, string Role, bool OnboardingCompleted, UsageView Usage);

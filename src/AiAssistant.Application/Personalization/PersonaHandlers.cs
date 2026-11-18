@@ -1,4 +1,5 @@
 using AiAssistant.Application.Common;
+using AiAssistant.Application.Billing;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Domain;
 using FluentValidation;
@@ -14,7 +15,7 @@ public sealed record ListPersonas(Guid UserId) : IRequest<Result<IReadOnlyList<P
 public sealed record SavePersona(Guid UserId, Guid? PersonaId, PersonaInput Input) : IRequest<Result<Guid>>;
 public sealed record DeletePersona(Guid UserId, Guid PersonaId) : IRequest<Result<Unit>>;
 
-public sealed class PersonaHandlers(IAssistantData data, PersonaAccess access) :
+public sealed class PersonaHandlers(IAssistantData data, PersonaAccess access, PlanAccess plans) :
     IRequestHandler<ListPersonas, Result<IReadOnlyList<PersonaView>>>,
     IRequestHandler<SavePersona, Result<Guid>>, IRequestHandler<DeletePersona, Result<Unit>>
 {
@@ -44,6 +45,10 @@ public sealed class PersonaHandlers(IAssistantData data, PersonaAccess access) :
         {
             if (request.PersonaId is not { } id)
             {
+                var plan = await plans.ResolveAsync(request.UserId, ct);
+                var count = await data.CountAsync(data.Query<Persona>().Where(persona => persona.OwnerId == request.UserId), ct);
+                if (count >= plan.MaxPersonas)
+                    return Result<Guid>.Fail(ErrorKind.Limit, "persona_limit", "Лимит персон вашего тарифа исчерпан.");
                 var newPersona = new Persona
                 {
                     OwnerId = request.UserId, Name = request.Input.Name.Trim(), SystemPrompt = request.Input.Instructions.Trim()

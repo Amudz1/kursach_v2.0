@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AiAssistant.Application.Ai;
 using AiAssistant.Application.Chats;
+using AiAssistant.Application.Billing;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Domain;
 using Microsoft.Extensions.Logging;
@@ -8,7 +9,7 @@ using Microsoft.Extensions.Logging;
 namespace AiAssistant.Application.Memory;
 
 public sealed partial class FollowUpProcessor(IAssistantData data, IAiProvider provider, AiDefaults defaults,
-    TimeProvider clock, IGenerationEvents events, ILogger<FollowUpProcessor> logger)
+    TimeProvider clock, IGenerationEvents events, PlanAccess plans, ILogger<FollowUpProcessor> logger)
 {
     public async Task<bool> ProcessNextAsync(CancellationToken cancellationToken)
     {
@@ -134,11 +135,12 @@ public sealed partial class FollowUpProcessor(IAssistantData data, IAiProvider p
         var known = await data.ListAsync(data.Query<UserMemory>().Where(item => item.UserId == userId)
             .Select(item => item.NormalizedContent).Take(1000), cancellationToken);
         var seen = known.ToHashSet(StringComparer.Ordinal);
+        var plan = await plans.ResolveAsync(userId, cancellationToken);
         var now = clock.GetUtcNow();
         foreach (var fact in facts)
         {
             var key = MemoryText.Normalize(fact);
-            if (seen.Count >= 1000 || !seen.Add(key)) continue;
+            if (seen.Count >= plan.MaxMemories || !seen.Add(key)) continue;
             data.Add(new UserMemory
             {
                 UserId = userId, Content = fact, NormalizedContent = key, CreatedAt = now, Source = MemorySource.Auto

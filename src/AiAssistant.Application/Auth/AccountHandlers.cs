@@ -1,11 +1,12 @@
 using AiAssistant.Application.Common;
+using AiAssistant.Application.Billing;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Domain;
 using MediatR;
 
 namespace AiAssistant.Application.Auth;
 
-public sealed class AccountHandlers(IAssistantData data, IPasswordService passwords, TimeProvider clock) :
+public sealed class AccountHandlers(IAssistantData data, IPasswordService passwords, TimeProvider clock, IUsageLimitService usage) :
     IRequestHandler<GetAccount, Result<AccountView>>,
     IRequestHandler<ChangeEmail, Result<Unit>>,
     IRequestHandler<ChangePassword, Result<Unit>>,
@@ -18,7 +19,8 @@ public sealed class AccountHandlers(IAssistantData data, IPasswordService passwo
             return Result<AccountView>.Fail(ErrorKind.NotFound, "account_not_found", "Аккаунт не найден.");
         var onboardingCompleted = await data.FirstAsync(data.Query<PersonalizationProfile>()
             .Where(profile => profile.UserId == user.Id).Select(profile => profile.OnboardingCompleted), cancellationToken);
-        return Result<AccountView>.Ok(new(user.Id, user.Username, user.Email, user.Role.ToString(), onboardingCompleted));
+        var limits = await usage.ReadAsync(user.Id, cancellationToken);
+        return Result<AccountView>.Ok(new(user.Id, user.Username, user.Email, user.Role.ToString(), onboardingCompleted, limits));
     }
 
     public async Task<Result<Unit>> Handle(ChangeEmail request, CancellationToken cancellationToken)

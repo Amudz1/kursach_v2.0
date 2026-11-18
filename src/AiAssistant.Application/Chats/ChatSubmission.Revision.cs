@@ -40,10 +40,17 @@ public sealed partial class ChatSubmission
             }
 
             var persona = await personas.ResolveAsync(request.UserId, chat.PersonaId, ct);
+            var plan = await plans.ResolveAsync(request.UserId, ct);
+            var model = SelectModel(plan, persona, null);
+            if (model is null)
+                return Result<Guid>.Fail(ErrorKind.Forbidden, "model_not_allowed", "Модель недоступна на вашем тарифе.");
+            var now = clock.GetUtcNow();
+            if (!await usage.ReserveAsync(request.UserId, plan.DailyRequestLimit, now, ct))
+                return LimitReached<Guid>();
             var answer = new Message
             {
-                ChatId = chat.Id, PersonaId = persona?.Id, Role = MessageRole.Assistant, Content = "", Model = personas.ModelFor(persona),
-                Status = GenerationStatus.Pending, CreatedAt = clock.GetUtcNow(),
+                ChatId = chat.Id, PersonaId = persona?.Id, Role = MessageRole.Assistant, Content = "", Model = model,
+                Status = GenerationStatus.Pending, CreatedAt = now,
                 TriggerMessageId = user.Id, RequestId = request.RequestId
             };
             chat.LastMessageAt = answer.CreatedAt;
