@@ -9,7 +9,6 @@ const router = useRouter()
 const fullScreen = computed(() => route.name === 'login' || route.name === 'onboarding')
 const nav = [
   { to: '/chats', label: 'Диалоги' },
-  { to: '/workspaces', label: 'Пространства' },
   { to: '/personalization', label: 'Персонализация' },
   { to: '/memory', label: 'Память' },
   { to: '/plans', label: 'Тарифы' },

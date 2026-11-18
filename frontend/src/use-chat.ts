@@ -14,6 +14,10 @@ export function useChat() {
   const selectedId = computed(() => typeof route.params.id === 'string' ? route.params.id : '')
   const chats = ref<Chat[]>([])
   const workspaces = ref<Workspace[]>([])
+  const projectChats = ref<Chat[]>([])
+  const projectHasMore = ref(false)
+  const projectLoading = ref(false)
+  const projectPage = ref(1)
   const detail = ref<Chat>()
   const messages = ref<Message[]>([])
   const selected = computed(() => chats.value.find((chat) => chat.id === selectedId.value) ??
@@ -47,20 +51,42 @@ export function useChat() {
   let pendingRequest = ''
   let disposed = false
   let gap = false
+  let projectRequest = 0
 
   async function loadChats(reset = true) {
     const wanted = reset ? 1 : page.value + 1
-    const workspace = workspaceId.value
     const query = new URLSearchParams({ search: search.value, page: String(wanted) })
-    if (workspace) query.set('workspaceId', workspace)
-    else query.set('personalOnly', 'true')
     try {
       const result = await api<Page<Chat>>(`/chats?${query}`)
-      if (search.value !== query.get('search') || workspace !== workspaceId.value) return
+      if (search.value !== query.get('search')) return
       chats.value = reset ? result.items : [...chats.value, ...result.items]
       chatsHaveMore.value = result.hasMore
       page.value = wanted
     } catch (reason) { error.value = explain(reason) }
+  }
+
+  async function loadWorkspaces() {
+    try { workspaces.value = await api<Workspace[]>('/workspaces') }
+    catch (reason) { error.value = explain(reason) }
+  }
+
+  async function loadProjectChats(reset = true) {
+    const workspace = workspaceId.value
+    const version = ++projectRequest
+    if (reset) { projectChats.value = []; projectHasMore.value = false; projectPage.value = 1 }
+    projectLoading.value = false
+    if (!workspace || selectedId.value) return
+    projectLoading.value = true
+    const wanted = reset ? 1 : projectPage.value + 1
+    const params = new URLSearchParams({ workspaceId: workspace, page: String(wanted) })
+    try {
+      const result = await api<Page<Chat>>(`/chats?${params}`)
+      if (version !== projectRequest) return
+      projectChats.value = reset ? result.items : [...projectChats.value, ...result.items]
+      projectHasMore.value = result.hasMore
+      projectPage.value = wanted
+    } catch (reason) { if (version === projectRequest) error.value = explain(reason) }
+    finally { if (version === projectRequest) projectLoading.value = false }
   }
 
   async function loadSelected(id: string) {
@@ -70,8 +96,17 @@ export function useChat() {
     } catch (reason) { if (id === selectedId.value) error.value = explain(reason) }
   }
 
-  function switchWorkspace(id: string) {
-    return router.push({ path: '/chats', query: id ? { workspace: id } : {} })
+  function openProject(id: string) {
+    return router.push({ path: '/chats', query: { workspace: id } })
+  }
+
+  async function projectRemoved(id: string) {
+    if (id === workspaceId.value) {
+      const chat = selectedId.value
+      await router.replace({ path: chat ? `/chats/${chat}` : '/chats' })
+      if (chat) await loadSelected(chat)
+    }
+    await Promise.all([loadWorkspaces(), loadChats()])
   }
 
   function updateMessage(item: Message) {
@@ -328,15 +363,14 @@ export function useChat() {
     await Promise.all([loadMessages(true), loadSelected(id), ensureHub()])
     if (id === selectedId.value) loading.value = false
   }, { immediate: true })
-  watch(workspaceId, () => { chats.value = []; search.value = ''; void loadChats() })
+  watch([workspaceId, selectedId], () => { void loadProjectChats() }, { immediate: true })
   onMounted(async () => {
     timer = setInterval(() => {
       if (flow.value && (!linked.value || gap)) void loadMessages()
       if (flow.value && !linked.value) void ensureHub()
     }, 1500)
     try {
-      await Promise.all([loadChats(), readAdaptation(),
-        api<Workspace[]>('/workspaces').then((value) => { workspaces.value = value }),
+      await Promise.all([loadChats(), readAdaptation(), loadWorkspaces(),
         api<Plan[]>('/plans', { auth: false }).then((value) => { plans.value = value })])
     } catch (reason) { error.value = explain(reason) }
   })
@@ -346,7 +380,8 @@ export function useChat() {
   })
 
   return { chats, messages, selectedId, selected, model, currentPlan, search, workspaces, workspaceId, workspaceQuery, currentWorkspace,
+    projectChats, projectHasMore, projectLoading, loadProjectChats, loadWorkspaces, openProject, projectRemoved,
     nextBefore, chatsHaveMore, draft, files, busy, loading, error, linked, flow, lastUser, lastAnswer, adaptation, transcript,
-    loadChats, loadMessages, newChat, patch, move, switchWorkspace, remove, changeDraft, chooseFiles, removeFile, send, stop,
+    loadChats, loadMessages, newChat, patch, move, remove, changeDraft, chooseFiles, removeFile, send, stop,
     revise, rate, decide, download }
 }

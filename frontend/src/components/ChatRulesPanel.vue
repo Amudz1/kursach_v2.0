@@ -56,7 +56,7 @@ defineExpose({ show })
       <template v-if="display">
           <p class="help">{{ tab === 'current' ? 'Настройки для следующего запроса. Тип задачи определяется по его тексту.' : 'Настройки, использованные для этого ответа.' }}</p>
           <dl class="context-list">
-            <div v-if="display.workspaceName"><dt>Пространство</dt><dd>{{ display.workspaceName }}</dd></div>
+            <div v-if="display.workspaceName"><dt>Проект</dt><dd>{{ display.workspaceName }}</dd></div>
             <div v-if="display.task"><dt>Тип задачи</dt><dd>{{ taskOptions[display.task] }}</dd></div>
             <div v-else><dt>Тип задачи</dt><dd>{{ display.adaptToTask ? 'Определяется по запросу' : 'Общие правила' }}</dd></div>
             <div><dt>Язык</dt><dd>{{ labelFor(languageOptions, display.language) }}</dd></div>
@@ -64,9 +64,9 @@ defineExpose({ show })
             <div><dt>Длина и формат</dt><dd>{{ labelFor(lengthOptions, display.length) }} · {{ labelFor(formatOptions, display.format) }}</dd></div>
             <div v-if="display.persona"><dt>Роль</dt><dd>{{ display.persona }}</dd></div>
             <div><dt>Память аккаунта</dt><dd>{{ display.memoryUsed ? 'Учтена' : display.memoryEnabled ? tab === 'current' ? 'Разрешена' : 'Факты не вошли' : 'Выключена' }}</dd></div>
-            <div v-if="display.workspaceName"><dt>Материалы пространства</dt><dd>{{ display.workspaceMaterials ? tab === 'current' ? 'Доступны' : 'Учтены' : 'Нет в контексте' }}</dd></div>
+            <div v-if="display.workspaceName"><dt>Материалы проекта</dt><dd>{{ display.workspaceMaterials ? tab === 'current' ? 'Доступны' : 'Учтены' : 'Нет в контексте' }}</dd></div>
           </dl>
-          <section v-if="display.workspaceInstructions" class="rule-note"><h3>Инструкции пространства</h3><p>{{ display.workspaceInstructions }}</p></section>
+          <section v-if="display.workspaceInstructions" class="rule-note"><h3>Инструкции проекта</h3><p>{{ display.workspaceInstructions }}</p></section>
           <section v-if="display.taskRule || display.taskInstructions" class="rule-note"><h3>Правила задачи</h3><p v-if="display.taskRule">{{ display.taskRule }}</p><p v-if="display.taskInstructions">{{ display.taskInstructions }}</p></section>
           <section v-if="display.goal" class="rule-note"><h3>Цель из профиля</h3><p>{{ display.goal }}</p></section>
       </template>

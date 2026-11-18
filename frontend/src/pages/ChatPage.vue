@@ -2,15 +2,17 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import ChatRulesPanel from '../components/ChatRulesPanel.vue'
+import ProjectEditor from '../components/ProjectEditor.vue'
 import { useChat } from '../use-chat'
 import { markdown } from '../markdown'
-import type { Message } from '../types'
+import type { Chat, Message } from '../types'
 
 const {
   chats, messages, selected, selectedId, model, currentPlan, search, nextBefore,
   chatsHaveMore, draft, files, busy, loading, error, linked, flow, lastUser, lastAnswer, adaptation, transcript,
   workspaces, workspaceId, workspaceQuery, currentWorkspace,
-  loadChats, loadMessages, newChat, patch, move, switchWorkspace, remove, changeDraft, chooseFiles, removeFile, send, stop, revise, rate,
+  projectChats, projectHasMore, projectLoading, loadProjectChats, loadWorkspaces, openProject, projectRemoved,
+  loadChats, loadMessages, newChat, patch, move, remove, changeDraft, chooseFiles, removeFile, send, stop, revise, rate,
   decide, download,
 } = useChat()
 const compactLayout = window.matchMedia('(max-width: 780px)')
@@ -32,7 +34,9 @@ const feedbackTarget = ref('')
 const composer = ref<HTMLTextAreaElement>()
 const chatMenu = ref<HTMLDetailsElement>()
 const rulesPanel = ref<InstanceType<typeof ChatRulesPanel>>()
+const projectEditor = ref<InstanceType<typeof ProjectEditor>>()
 const temporary = computed(() => Boolean(selected.value?.expiresAt))
+const projectNames = computed(() => new Map(workspaces.value.map((project) => [project.id, project.name])))
 const defaultIdeas = ['Объясни идею на простом примере', 'Помоги улучшить мой текст', 'Разложи задачу на шаги']
 const reasons = { too_long: 'Слишком длинно', too_complex: 'Слишком сложно', inaccurate: 'Неточно', wrong_language: 'Не тот язык' }
 const failureMessages: Record<string, string> = {
@@ -76,6 +80,24 @@ function moveChat(event: Event) {
   const workspace = (event.target as HTMLSelectElement).value
   if (chatMenu.value) chatMenu.value.open = false
   void move(workspace)
+}
+
+function editProject() {
+  if (!currentWorkspace.value) return
+  if (chatMenu.value) chatMenu.value.open = false
+  projectEditor.value?.show(currentWorkspace.value)
+}
+
+function chatRoute(chat: Chat) {
+  return { path: `/chats/${chat.id}`, query: chat.workspaceId ? { workspace: chat.workspaceId } : {} }
+}
+
+async function projectSaved(id: string, created: boolean) {
+  await loadWorkspaces()
+  if (created) {
+    closeMobileHistory()
+    await openProject(id)
+  }
 }
 
 function time(value: string) {
@@ -142,23 +164,29 @@ onUnmounted(() => {
 
 <template>
   <section class="workspace" :class="{ 'history-open': historyVisible }" aria-label="Диалоги Budz">
-    <aside v-show="historyVisible" id="chat-history" ref="historyPanel" class="history" tabindex="-1" aria-labelledby="history-heading" @keydown.esc.stop="hideHistory">
-      <h2 id="history-heading">Диалоги</h2>
-      <label v-if="workspaces.length" class="history-scope">Пространство
-        <select aria-label="Пространство диалогов" :value="workspaceId" @change="switchWorkspace(($event.target as HTMLSelectElement).value)">
-          <option value="">Личные диалоги</option>
-          <option v-for="space in workspaces" :key="space.id" :value="space.id">{{ space.name }}</option>
-        </select>
-      </label>
+    <aside v-show="historyVisible" id="chat-history" ref="historyPanel" class="history" tabindex="-1" aria-label="Боковая панель диалогов" @keydown.esc.stop="hideHistory">
+      <section class="history-projects" aria-labelledby="projects-heading">
+        <div class="history-project-heading">
+          <h2 id="projects-heading"><RouterLink to="/workspaces" title="Управление проектами">Проекты</RouterLink></h2>
+          <button type="button" class="history-project-add" @click="projectEditor?.show()" aria-label="Новый проект" title="Новый проект">+</button>
+        </div>
+        <nav v-if="workspaces.length" class="history-project-list" aria-label="Список проектов">
+          <RouterLink v-for="project in workspaces" :key="project.id" :to="{ path: '/chats', query: { workspace: project.id } }"
+            :aria-current="workspaceId === project.id ? 'location' : undefined" @click="closeMobileHistory">
+            <span class="project-folder" aria-hidden="true"></span><span>{{ project.name }}</span>
+          </RouterLink>
+        </nav>
+      </section>
+      <h2>Все диалоги</h2>
       <form class="search-form" @submit.prevent="loadChats()">
         <label class="sr-only" for="chat-search">Поиск по диалогам</label>
         <input id="chat-search" v-model="search" type="search" maxlength="120" placeholder="Поиск по диалогам">
         <button class="text-button" type="submit">Найти</button>
       </form>
       <nav aria-label="История диалогов" class="thread-list">
-        <RouterLink v-for="chat in chats" :key="chat.id" :to="{ path: `/chats/${chat.id}`, query: workspaceQuery }" @click="closeMobileHistory">
+        <RouterLink v-for="chat in chats" :key="chat.id" :to="chatRoute(chat)" @click="closeMobileHistory">
           <span v-if="chat.isPinned" class="pin-mark" aria-label="Закреплён">◆</span>
-          <span>{{ chat.title }}</span>
+          <span><span>{{ chat.title }}</span><small v-if="chat.workspaceId && projectNames.has(chat.workspaceId)">{{ projectNames.get(chat.workspaceId) }}</small></span>
         </RouterLink>
         <p v-if="!chats.length" class="muted">Диалогов пока нет.</p>
       </nav>
@@ -172,9 +200,9 @@ onUnmounted(() => {
           <span class="history-icon" aria-hidden="true"></span>
         </button>
         <div class="conversation-heading">
-          <h1>{{ selected?.title ?? (selectedId ? 'Диалог' : 'Новый диалог') }}</h1>
+          <h1>{{ selected?.title ?? (selectedId ? 'Диалог' : currentWorkspace?.name ?? 'Новый диалог') }}</h1>
           <p v-if="selected?.expiresAt" class="help chat-scope-name" :title="new Date(selected.expiresAt).toLocaleString('ru-RU')">Временный диалог</p>
-          <p v-else-if="currentWorkspace" class="help chat-scope-name">{{ currentWorkspace.name }}</p>
+          <p v-else-if="selectedId && currentWorkspace" class="help chat-scope-name">{{ currentWorkspace.name }}</p>
           <p v-if="selectedId" class="status-line"><span :class="{ online: linked }"></span>{{ linked ? 'Подключено' : 'Подключаемся к чату' }}</p>
         </div>
         <button type="button" class="chat-control chat-rules-button" aria-haspopup="dialog" @click="rulesPanel?.show()">Правила</button>
@@ -185,6 +213,7 @@ onUnmounted(() => {
             <label>Модель <select :value="model" aria-label="Модель" @change="setModel">
               <option value="">Автоматически</option><option v-for="allowed in currentPlan?.allowedModels" :key="allowed" :value="allowed">{{ allowed }}</option>
             </select></label>
+            <button v-if="currentWorkspace && selectedId" class="text-button" @click="editProject">Настройки проекта</button>
             <template v-if="selectedId">
               <label v-if="!temporary && workspaces.length" :key="workspaceId + ':' + selectedId">Переместить диалог
                 <select :value="workspaceId" aria-label="Переместить диалог" :disabled="!!flow" @change="moveChat">
@@ -204,7 +233,24 @@ onUnmounted(() => {
       <div ref="transcript" class="transcript" aria-label="Сообщения">
         <p v-if="loading && !messages.length" class="muted" role="status">Загружаем сообщения…</p>
         <button v-if="nextBefore" class="plain-button" @click="loadMessages(false, true)">Загрузить ранние сообщения</button>
-        <div v-if="!loading && !messages.length" class="start-conversation">
+        <section v-if="currentWorkspace && !selectedId" class="project-overview stack" aria-labelledby="project-conversations">
+          <header class="project-overview-heading">
+            <h2 id="project-conversations">Диалоги проекта</h2>
+            <div class="actions">
+              <button type="button" class="secondary" @click="editProject">Настройки проекта</button>
+              <RouterLink :to="{ path: '/data', query: workspaceQuery }" class="text-button">Перенос данных</RouterLink>
+            </div>
+          </header>
+          <nav v-if="projectChats.length" class="thread-list project-conversations" aria-label="Диалоги проекта">
+            <RouterLink v-for="chat in projectChats" :key="chat.id" :to="chatRoute(chat)">
+              <span v-if="chat.isPinned" class="pin-mark" aria-label="Закреплён">◆</span>{{ chat.title }}
+            </RouterLink>
+          </nav>
+          <p v-else-if="!projectLoading" class="muted">В проекте пока нет диалогов.</p>
+          <p v-if="projectLoading" class="muted" role="status">Загружаем диалоги проекта…</p>
+          <button v-else-if="projectHasMore" type="button" class="plain-button self-start" @click="loadProjectChats(false)">Ещё диалоги проекта</button>
+        </section>
+        <div v-else-if="!loading && !messages.length" class="start-conversation">
           <span class="brand-mark start-mark" aria-hidden="true">b<span>.</span></span>
           <h2>С чего начнём?</h2>
           <div class="start-choices"><button v-for="idea in defaultIdeas" :key="idea" class="secondary" @click="setComposer(idea)">{{ idea }} <span aria-hidden="true">↗</span></button></div>
@@ -282,5 +328,6 @@ onUnmounted(() => {
       </form>
     </dialog>
     <ChatRulesPanel ref="rulesPanel" :chat-id="selectedId" :workspace-id="workspaceId" :last="lastAnswer?.rules" />
+    <ProjectEditor ref="projectEditor" @saved="projectSaved" @removed="projectRemoved" />
   </section>
 </template>
