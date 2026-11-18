@@ -2,6 +2,7 @@ using AiAssistant.Application.Chats;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace AiAssistant.Api.Controllers;
 
@@ -33,11 +34,12 @@ public sealed class ChatsController(ISender sender) : ApplicationController
         From(await sender.Send(new ListMessages(CurrentUserId, chatId, before, limit), cancellationToken));
 
     [HttpPost("{chatId:guid}/messages")]
+    [EnableRateLimiting("chat")]
     public async Task<IActionResult> Send(Guid chatId, SendBody body, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new SendChatMessage(CurrentUserId, chatId, body.RequestId ?? Guid.NewGuid(), body.Content),
             cancellationToken);
-        return result.IsSuccess ? StatusCode(StatusCodes.Status201Created, new { id = result.Value }) : Failure(result.Error!);
+        return result.IsSuccess ? Accepted(new { id = result.Value }) : Failure(result.Error!);
     }
 
     public sealed record PatchBody(string? Title, bool? IsPinned);

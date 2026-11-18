@@ -5,7 +5,7 @@ using AiAssistant.Application.Ai;
 
 namespace AiAssistant.Infrastructure.Ai;
 
-public sealed class OpenRouterProvider(HttpClient client) : IAiProvider
+public sealed partial class OpenRouterProvider(HttpClient client) : IAiProvider
 {
     public async Task<AiReply> CompleteAsync(AiRequest request, CancellationToken cancellationToken)
     {

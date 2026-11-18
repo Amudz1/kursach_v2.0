@@ -20,7 +20,8 @@ public sealed class ChatReadHandlers(IAssistantData data, ChatAccess access) :
         {
             var messages = data.Query<Message>();
             query = query.Where(chat => chat.Title.ToLower().Contains(search) ||
-                messages.Any(message => message.ChatId == chat.Id && message.Content.ToLower().Contains(search)));
+                messages.Any(message => message.ChatId == chat.Id && message.Status != GenerationStatus.Superseded &&
+                    message.Content.ToLower().Contains(search)));
         }
 
         var results = await data.ListAsync(query.OrderByDescending(chat => chat.IsPinned)
@@ -38,7 +39,8 @@ public sealed class ChatReadHandlers(IAssistantData data, ChatAccess access) :
         if (await access.FindAsync(request.UserId, request.ChatId, false, cancellationToken) is null)
             return ChatAccess.NotFound<MessagePage>();
 
-        var query = data.Query<Message>().Where(message => message.ChatId == request.ChatId);
+        var query = data.Query<Message>().Where(message => message.ChatId == request.ChatId &&
+            message.Status != GenerationStatus.Superseded);
         if (request.Before.HasValue)
         {
             var cursor = await data.FirstAsync(query.Where(message => message.Id == request.Before.Value), cancellationToken);

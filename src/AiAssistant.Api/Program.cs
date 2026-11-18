@@ -1,4 +1,5 @@
 using AiAssistant.Api.Ai;
+using AiAssistant.Api.Realtime;
 using AiAssistant.Api.Security;
 using AiAssistant.Application.Auth;
 using AiAssistant.Application.Chats;
@@ -14,6 +15,11 @@ builder.Services.AddAssistantAuth(builder.Configuration, builder.Environment);
 builder.Services.AddAssistantAi(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<ChatAccess>();
 builder.Services.AddScoped<ChatSubmission>();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<GenerationStops>();
+builder.Services.AddSingleton<IGenerationEvents, HubGenerationEvents>();
+builder.Services.AddScoped<GenerationProcessor>();
+builder.Services.AddHostedService<GenerationWorker>();
 builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("postgres");
 builder.Services.AddSingleton(TimeProvider.System);
@@ -40,6 +46,7 @@ app.UseAuthorization();
 app.UseRateLimiter();
 app.MapHealthChecks("/health");
 app.MapControllers();
+app.MapHub<ChatHub>("/hubs/chat", options => options.CloseOnAuthenticationExpiration = true);
 app.Run();
 
 public partial class Program;

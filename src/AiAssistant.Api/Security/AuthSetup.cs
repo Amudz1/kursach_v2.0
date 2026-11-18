@@ -49,7 +49,21 @@ internal static class AuthSetup
                 NameClaimType = JwtRegisteredClaimNames.Sub,
                 RoleClaimType = JwtSettings.RoleClaim
             };
-            options.Events = new JwtBearerEvents { OnTokenValidated = ValidateAccountAsync };
+            options.Events = new JwtBearerEvents
+            {
+                OnTokenValidated = ValidateAccountAsync,
+                OnMessageReceived = context =>
+                {
+                    if (context.Request.Path == "/hubs/chat" &&
+                        (context.HttpContext.WebSockets.IsWebSocketRequest ||
+                         context.Request.Headers.Accept.ToString().Contains("text/event-stream", StringComparison.OrdinalIgnoreCase)) &&
+                        context.Request.Query.TryGetValue("access_token", out var token))
+                    {
+                        context.Token = token;
+                    }
+                    return Task.CompletedTask;
+                }
+            };
         });
         services.AddAuthorization();
         services.AddRateLimiter(options =>
@@ -59,6 +73,12 @@ internal static class AuthSetup
                 context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new()
                 {
                     Window = TimeSpan.FromMinutes(1), PermitLimit = 12, QueueLimit = 0
+                }));
+            options.AddPolicy("chat", context => RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirstValue(JwtRegisteredClaimNames.Sub) ??
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new()
+                {
+                    Window = TimeSpan.FromMinutes(1), PermitLimit = 25, QueueLimit = 0
                 }));
         });
         return services;
