@@ -3,8 +3,8 @@ import { createPinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import { useSession } from './session'
-import './theme'
-import './style.css'
+import './appearance'
+import './styles/index.css'
 
 const pinia = createPinia()
 const router = createRouter({

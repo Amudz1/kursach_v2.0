@@ -1,0 +1,35 @@
+/* Reset and element defaults. Values are copied from the dev_2 stylesheet, so nothing moves. */
+@layer base {
+  :root { font-family: var(--font-sans); color: var(--ink); background: var(--paper); font-synthesis: none; }
+  * { box-sizing: border-box; }
+  body { min-width: 320px; margin: 0; }
+  button, input, select, textarea { font: inherit; }
+  button, summary, select { cursor: pointer; }
+  button:disabled { cursor: default; opacity: .58; }
+  a { color: var(--accent); }
+  a, button, input, textarea, select, summary { outline-offset: 3px; }
+  :focus-visible { outline: 3px solid var(--focus); }
+  ::selection { color: light-dark(#0c2a83, #e9eaf0); background: light-dark(#dce6fd, #444c59); }
+  p, h1, h2, h3, dl, dd, ul, ol { margin: 0; }
+  h1, h2, h3 { line-height: 1.08; overflow-wrap: anywhere; }
+  h1, h2 { font-weight: 670; }
+  h1 { font-size: clamp(2.2rem, 4.4vw, 4.1rem); letter-spacing: -.055em; }
+  h2 { font-size: clamp(1.45rem, 2vw, 2rem); letter-spacing: -.035em; }
+  h3 { font-weight: 650; font-size: 1.04rem; }
+  p, dd { overflow-wrap: anywhere; }
+  p { line-height: 1.55; }
+  label:not(.check) { display: grid; gap: .45rem; font-weight: 600; font-size: .88rem; }
+  input, select, textarea {
+    width: 100%; min-width: 0; border: 1px solid var(--dark-rule); border-radius: 9px;
+    color: var(--ink); background: var(--input); padding: .65rem .8rem; line-height: 1.35;
+  }
+  textarea { resize: vertical; }
+  input::placeholder, textarea::placeholder { color: var(--muted); }
+  input[type=checkbox] { width: 1.15rem; height: 1.15rem; flex: 0 0 auto; accent-color: var(--accent); }
+  summary { color: var(--accent); font-weight: 650; }
+  pre { max-width: 100%; min-width: 0; overflow-x: auto; margin: .35rem 0; padding: .7rem; border-radius: 8px; background: var(--inset); }
+  code { font-family: var(--font-mono); font-size: .88em; }
+  .hljs-keyword, .hljs-title, .hljs-built_in { color: light-dark(#315250, #acbdd1); }
+  .hljs-string, .hljs-number, .hljs-literal { color: light-dark(#752923, #d5b3a7); }
+  .hljs-comment { color: light-dark(#53675b, #adbbb2); }
+}

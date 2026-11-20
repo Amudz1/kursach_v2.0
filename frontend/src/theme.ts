@@ -1,57 +1,18 @@
-import { readonly, ref } from 'vue'
+// Compatibility layer for the dev_2 theme API; the settings now live in `appearance/`.
+import { computed } from 'vue'
+import { appearance, previewAppearance, readHex, setAppearance, type ColorMode } from './appearance'
 
-const themeKey = 'budz.theme'
-const tintKey = 'budz.theme-tint'
-const root = document.documentElement
-export type Theme = 'system' | 'light' | 'dark'
+export type Theme = ColorMode
 
-function readTheme(value: string | null | undefined): Theme {
-  return value === 'light' || value === 'dark' ? value : 'system'
-}
-
-function readTint(value: string | null | undefined) {
-  return value && /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : null
-}
-
-const preference = ref<Theme>(readTheme(root.dataset.theme))
-const tint = ref(readTint(root.dataset.tint))
-export const theme = readonly(preference)
-export const themeTint = readonly(tint)
-
-function applyTheme(value: Theme) {
-  preference.value = value
-  if (value === 'system') delete root.dataset.theme
-  else root.dataset.theme = value
-}
+export const theme = computed(() => appearance.value.mode)
+export const themeTint = computed(() => appearance.value.accent)
 
 export function setTheme(value: Theme) {
-  applyTheme(value)
-  try { localStorage.setItem(themeKey, value) } catch { /* Keep the choice for this page. */ }
-}
-
-function applyTint(value: string | null) {
-  tint.value = value
-  if (value) {
-    root.dataset.tint = value
-    root.style.setProperty('--theme-tint', value)
-  } else {
-    delete root.dataset.tint
-    root.style.removeProperty('--theme-tint')
-  }
+  setAppearance({ mode: value })
 }
 
 export function setThemeTint(value: string | null, preview = false) {
-  const next = readTint(value)
-  applyTint(next)
-  if (preview) return
-  try {
-    if (next) localStorage.setItem(tintKey, next)
-    else localStorage.removeItem(tintKey)
-  } catch { /* Keep the choice for this page. */ }
+  const accent = readHex(value)
+  if (preview) previewAppearance({ accent })
+  else setAppearance({ accent })
 }
-
-window.addEventListener('storage', (event) => {
-  if (event.storageArea !== localStorage) return
-  if (event.key === themeKey || event.key === null) applyTheme(readTheme(event.newValue))
-  if (event.key === tintKey || event.key === null) applyTint(readTint(event.newValue))
-})

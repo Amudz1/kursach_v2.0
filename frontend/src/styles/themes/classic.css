@@ -1,0 +1,105 @@
+/* Classic theme: the dev_2 colours, unchanged (ТЗ 4.2). New tokens are added on top of them. */
+@layer tokens {
+  :root {
+    --base-paper: light-dark(#f3eee4, #1f2022);
+    --base-sheet: light-dark(#fffcf6, #25272a);
+    --base-input: light-dark(#ffffff, #212325);
+    --base-message: light-dark(#fffdfa, #282a2d);
+    --base-accent: light-dark(#3d5949, #b6bec5);
+    --base-accent-dark: light-dark(#284135, #c6cbd0);
+    --base-pale: light-dark(#e9ede2, #303538);
+    --base-rule: light-dark(#e2d9ca, #3b3e42);
+    --base-inset: light-dark(#f3ede3, #2c2f32);
+    --base-inset-hover: light-dark(#e9e1d5, #34383b);
+    --base-contrast-fill: light-dark(#284135, #50585e);
+    --base-primary-fill: light-dark(#3d5949, #454d53);
+    --base-feature: light-dark(#284135, #2e3337);
+    --base-focus: light-dark(#4d766d, #aab4bd);
+    --paper: var(--base-paper);
+    --sheet: var(--base-sheet);
+    --input: var(--base-input);
+    --message-surface: var(--base-message);
+    --ink: light-dark(#172329, #e7e4df);
+    --muted: light-dark(#505d62, #b8b8ba);
+    --accent: var(--base-accent);
+    --accent-dark: var(--base-accent-dark);
+    --pale: var(--base-pale);
+    --rule: var(--base-rule);
+    --dark-rule: light-dark(#a69e90, #787e83);
+    --inset: var(--base-inset);
+    --inset-hover: var(--base-inset-hover);
+    --contrast-fill: var(--base-contrast-fill);
+    --primary-fill: var(--base-primary-fill);
+    --on-fill: light-dark(#ffffff, #efece7);
+    --feature: var(--base-feature);
+    --feature-ink: light-dark(#e3eadd, #d5d7d8);
+    --focus: var(--base-focus);
+    --brand-fill: light-dark(#183caf, #444d61);
+    --brand-accent: light-dark(#183caf, #a5afc6);
+    --danger: light-dark(#912d2c, #e9ada8);
+    --danger-fill: light-dark(#912d2c, #863f3d);
+    --good: light-dark(#216246, #a8c3b2);
+    --serif: var(--font-serif);
+
+    /* Semantic aliases (ТЗ 4.1). Existing names above stay, so current CSS keeps working. */
+    --surface-0: var(--paper);
+    --surface-1: var(--sheet);
+    --surface-2: var(--inset);
+    --surface-3: var(--pale);
+    --text: var(--ink);
+    --text-muted: var(--muted);
+    --on-accent: var(--on-fill);
+    --border: var(--rule);
+    --success: var(--good);
+    --warning: light-dark(#8a5a2b, #e2c39a);
+    --info: var(--brand-accent);
+
+    /* Status colours, each with a surface, a border and text (ТЗ 4.2). */
+    --status-danger-bg: light-dark(#faeae5, #3b2c2c);
+    --status-danger-border: var(--danger);
+    --status-danger-text: light-dark(#772322, #e9c0b9);
+    --status-success-bg: light-dark(#e6efe7, #2d3933);
+    --status-success-border: var(--good);
+    --status-success-text: light-dark(#22553f, #c4d4c6);
+    --status-warning-bg: light-dark(#f6efe2, #3a342a);
+    --status-warning-border: var(--warning);
+    --status-warning-text: light-dark(#6d471f, #ead7b8);
+    --status-info-bg: light-dark(#e8eefb, #2c3340);
+    --status-info-border: var(--info);
+    --status-info-text: light-dark(#183caf, #c8d0e2);
+
+    /* Second accent: the logo blue, or a custom choice (ТЗ 4.2). */
+    --accent-2: var(--accent-2-custom, var(--brand-accent));
+
+    /* Component tokens (ТЗ 4.1). */
+    --btn-primary-bg: var(--primary-fill);
+    --btn-primary-text: var(--on-fill);
+    --message-user-bg: var(--inset);
+    --composer-border: var(--dark-rule);
+  }
+
+  :root[data-tint] {
+    /* Keep the base lightness and text colours stable even with an extreme custom tint. */
+    --paper: color-mix(in srgb, var(--base-paper), var(--theme-tint) var(--background-tint));
+    --sheet: color-mix(in srgb, var(--base-sheet), var(--theme-tint) calc(var(--background-tint) * 6 / 11));
+    --input: color-mix(in srgb, var(--base-input), var(--theme-tint) calc(var(--background-tint) * 4 / 11));
+    --message-surface: color-mix(in srgb, var(--base-message), var(--theme-tint) calc(var(--background-tint) * 7 / 11));
+    --accent: color-mix(in srgb, var(--base-accent), var(--theme-tint) var(--background-tint));
+    --accent-dark: color-mix(in srgb, var(--base-accent-dark), var(--theme-tint) var(--background-tint));
+    --pale: color-mix(in srgb, var(--base-pale), var(--theme-tint) calc(var(--background-tint) * 8 / 11));
+    --rule: color-mix(in srgb, var(--base-rule), var(--theme-tint) calc(var(--background-tint) * 14 / 11));
+    --inset: color-mix(in srgb, var(--base-inset), var(--theme-tint) calc(var(--background-tint) * 8 / 11));
+    --inset-hover: color-mix(in srgb, var(--base-inset-hover), var(--theme-tint) calc(var(--background-tint) * 7 / 11));
+    --contrast-fill: color-mix(in srgb, var(--base-contrast-fill), var(--theme-tint) calc(var(--background-tint) * 9 / 11));
+    --primary-fill: color-mix(in srgb, var(--base-primary-fill), var(--theme-tint) calc(var(--background-tint) * 12 / 11));
+    --feature: color-mix(in srgb, var(--base-feature), var(--theme-tint) calc(var(--background-tint) * 13 / 11));
+    --focus: color-mix(in srgb, var(--base-focus), var(--theme-tint) calc(var(--background-tint) * 12 / 11));
+  }
+
+  :root {
+    --glow-color: color-mix(in oklab, var(--accent) var(--glow-strength, 45%), transparent);
+    --glow-sm: 0 0 0 3px var(--glow-color);
+    --glow-md: 0 0 0 1px var(--accent), 0 6px 22px -4px var(--glow-color);
+    --glow-lg: 0 0 0 1px var(--accent), 0 10px 36px -6px var(--glow-color);
+  }
+}

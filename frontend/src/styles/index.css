@@ -1,0 +1,8 @@
+/* Cascade order (ТЗ 4.7). Scoped component styles stay unlayered and therefore override all of these. */
+@layer reset, tokens, base, components, utilities;
+
+@import './tokens.css';
+@import './themes/classic.css';
+@import './base.css';
+@import './components.css';
+@import './utilities.css';

@@ -1,0 +1,115 @@
+/* Design tokens (ТЗ 4). Primitives and scales are new; the Classic theme keeps the dev_2 colours. */
+@layer tokens {
+  :root {
+    color-scheme: light dark;
+
+    /* Ink scale, sampled from the Classic paper and ink. */
+    --c-ink-50: #f7f3ec;
+    --c-ink-100: #efe8dc;
+    --c-ink-200: #e2d9ca;
+    --c-ink-300: #c9bfb0;
+    --c-ink-400: #a69e90;
+    --c-ink-500: #787068;
+    --c-ink-600: #505d62;
+    --c-ink-700: #344046;
+    --c-ink-800: #243036;
+    --c-ink-900: #172329;
+    /* Brand scale, sampled from the logo blue. */
+    --c-brand-50: #eef2fc;
+    --c-brand-100: #dce6fd;
+    --c-brand-200: #b9c8f4;
+    --c-brand-300: #8aa3e4;
+    --c-brand-400: #5b7ad0;
+    --c-brand-500: #3458bc;
+    --c-brand-600: #183caf;
+    --c-brand-700: #133196;
+    --c-brand-800: #0f2678;
+    --c-brand-900: #0c1d5c;
+
+    /* Categorical palette for personas, projects and task types (ТЗ 4.2). */
+    --cat-1: #3d5949;
+    --cat-2: #183caf;
+    --cat-3: #8a5a2b;
+    --cat-4: #7a4e78;
+    --cat-5: #2f6f6a;
+    --cat-6: #8d3d3a;
+    --cat-7: #5d6840;
+    --cat-8: #3f5870;
+
+    /* Radius scale; «Скругление» swaps the whole scale. */
+    --radius-xs: 4px;
+    --radius-sm: 7px;
+    --radius-md: 9px;
+    --radius-lg: 13px;
+    --radius-xl: 17px;
+    --radius-full: 999px;
+
+    /* 4 px spacing grid; «Плотность» scales it. */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-7: 32px;
+    --space-8: 40px;
+    --space-9: 48px;
+    --space-10: 64px;
+
+    /* Elevation; the dark theme adds a light top edge (ТЗ 4.4). */
+    --elevation-0: none;
+    --elevation-1: 0 1px 2px #10242c14;
+    --elevation-2: 0 6px 18px #10242c1c;
+    --elevation-3: 0 18px 60px #10242c35;
+
+    /* Motion (ТЗ 4.5). */
+    --motion-fast: 120ms;
+    --motion-base: 200ms;
+    --motion-slow: 320ms;
+    --ease-out: cubic-bezier(.2, .8, .2, 1);
+    --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+
+    /* Type (ТЗ 4.3). Faces are swapped by the appearance engine; sizes stay in rem. */
+    --font-sans: "Segoe UI", system-ui, sans-serif;
+    --font-serif: Georgia, "Times New Roman", serif;
+    --font-mono: ui-monospace, Consolas, monospace;
+    --font-size-2xs: .75rem;
+    --font-size-xs: .8125rem;
+    --font-size-sm: .875rem;
+    --font-size-md: 1rem;
+    --font-size-lg: 1.125rem;
+    --font-size-xl: 1.375rem;
+    --font-size-2xl: 1.75rem;
+    --font-size-3xl: 2.25rem;
+    --font-size-4xl: 3rem;
+
+    --header: 70px;
+    /* Set by the appearance engine; 0 % means no tint. */
+    --background-tint: 11%;
+  }
+
+  :root[data-theme="light"] { color-scheme: light; }
+  :root[data-theme="dark"] { color-scheme: dark; }
+
+  :root[data-radius="sharp"] { --radius-xs: 0; --radius-sm: 2px; --radius-md: 2px; --radius-lg: 3px; --radius-xl: 4px; --radius-full: 2px; }
+  :root[data-radius="soft"] { --radius-xs: 6px; --radius-sm: 10px; --radius-md: 14px; --radius-lg: 18px; --radius-xl: 24px; }
+  :root[data-radius="pill"] { --radius-xs: 8px; --radius-sm: 14px; --radius-md: 20px; --radius-lg: 28px; --radius-xl: 36px; }
+
+  :root[data-density="compact"] { --space-1: 3px; --space-2: 6px; --space-3: 9px; --space-4: 12px; --space-5: 16px; --space-6: 18px; --space-7: 24px; --space-8: 32px; --space-9: 36px; --space-10: 48px; }
+  :root[data-density="spacious"] { --space-1: 5px; --space-2: 10px; --space-3: 15px; --space-4: 20px; --space-5: 26px; --space-6: 30px; --space-7: 40px; --space-8: 50px; --space-9: 60px; --space-10: 80px; }
+
+  :root[data-font="inter"] { --font-sans: "Inter", "Segoe UI", system-ui, sans-serif; }
+  :root[data-font="manrope"] { --font-sans: "Manrope", "Segoe UI", system-ui, sans-serif; }
+  :root[data-font="plex"] { --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; }
+  :root[data-code-font="jetbrains"] { --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace; }
+  :root[data-code-font="fira"] { --font-mono: "Fira Code", ui-monospace, Consolas, monospace; }
+
+  :root[data-font-scale="90"] { font-size: 90%; }
+  :root[data-font-scale="110"] { font-size: 110%; }
+  :root[data-font-scale="120"] { font-size: 120%; }
+
+  /* Glow (ТЗ 4.6); «Свечение» changes the transparency of --glow-color. */
+  :root[data-glow="off"] { --glow-strength: 0%; }
+  :root[data-glow="soft"] { --glow-strength: 45%; }
+  :root[data-glow="bright"] { --glow-strength: 72%; }
+}

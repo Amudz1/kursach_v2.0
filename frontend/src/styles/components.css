@@ -1,96 +1,6 @@
-:root {
-  font-family: "Segoe UI", system-ui, sans-serif;
-  color-scheme: light dark;
-  color: var(--ink);
-  background: var(--paper);
-  font-synthesis: none;
-  --base-paper: light-dark(#f3eee4, #1f2022);
-  --base-sheet: light-dark(#fffcf6, #25272a);
-  --base-input: light-dark(#ffffff, #212325);
-  --base-message: light-dark(#fffdfa, #282a2d);
-  --base-accent: light-dark(#3d5949, #b6bec5);
-  --base-accent-dark: light-dark(#284135, #c6cbd0);
-  --base-pale: light-dark(#e9ede2, #303538);
-  --base-rule: light-dark(#e2d9ca, #3b3e42);
-  --base-inset: light-dark(#f3ede3, #2c2f32);
-  --base-inset-hover: light-dark(#e9e1d5, #34383b);
-  --base-contrast-fill: light-dark(#284135, #50585e);
-  --base-primary-fill: light-dark(#3d5949, #454d53);
-  --base-feature: light-dark(#284135, #2e3337);
-  --base-focus: light-dark(#4d766d, #aab4bd);
-  --paper: var(--base-paper);
-  --sheet: var(--base-sheet);
-  --input: var(--base-input);
-  --message-surface: var(--base-message);
-  --ink: light-dark(#172329, #e7e4df);
-  --muted: light-dark(#505d62, #b8b8ba);
-  --accent: var(--base-accent);
-  --accent-dark: var(--base-accent-dark);
-  --pale: var(--base-pale);
-  --rule: var(--base-rule);
-  --dark-rule: light-dark(#a69e90, #787e83);
-  --inset: var(--base-inset);
-  --inset-hover: var(--base-inset-hover);
-  --contrast-fill: var(--base-contrast-fill);
-  --primary-fill: var(--base-primary-fill);
-  --on-fill: light-dark(#ffffff, #efece7);
-  --feature: var(--base-feature);
-  --feature-ink: light-dark(#e3eadd, #d5d7d8);
-  --focus: var(--base-focus);
-  --brand-fill: light-dark(#183caf, #444d61);
-  --brand-accent: light-dark(#183caf, #a5afc6);
-  --danger: light-dark(#912d2c, #e9ada8);
-  --danger-fill: light-dark(#912d2c, #863f3d);
-  --good: light-dark(#216246, #a8c3b2);
-  --serif: Georgia, "Times New Roman", serif;
-  --header: 70px;
-}
-:root[data-theme="light"] { color-scheme: light; }
-:root[data-theme="dark"] { color-scheme: dark; }
-:root[data-tint] {
-  /* Keep the base lightness and text colors stable even with an extreme custom tint. */
-  --paper: color-mix(in srgb, var(--base-paper), var(--theme-tint) 11%);
-  --sheet: color-mix(in srgb, var(--base-sheet), var(--theme-tint) 6%);
-  --input: color-mix(in srgb, var(--base-input), var(--theme-tint) 4%);
-  --message-surface: color-mix(in srgb, var(--base-message), var(--theme-tint) 7%);
-  --accent: color-mix(in srgb, var(--base-accent), var(--theme-tint) 11%);
-  --accent-dark: color-mix(in srgb, var(--base-accent-dark), var(--theme-tint) 11%);
-  --pale: color-mix(in srgb, var(--base-pale), var(--theme-tint) 8%);
-  --rule: color-mix(in srgb, var(--base-rule), var(--theme-tint) 14%);
-  --inset: color-mix(in srgb, var(--base-inset), var(--theme-tint) 8%);
-  --inset-hover: color-mix(in srgb, var(--base-inset-hover), var(--theme-tint) 7%);
-  --contrast-fill: color-mix(in srgb, var(--base-contrast-fill), var(--theme-tint) 9%);
-  --primary-fill: color-mix(in srgb, var(--base-primary-fill), var(--theme-tint) 12%);
-  --feature: color-mix(in srgb, var(--base-feature), var(--theme-tint) 13%);
-  --focus: color-mix(in srgb, var(--base-focus), var(--theme-tint) 12%);
-}
-
-* { box-sizing: border-box; }
-body { min-width: 320px; margin: 0; }
-button, input, select, textarea { font: inherit; }
-button, summary, select { cursor: pointer; }
-button:disabled { cursor: default; opacity: .58; }
-a { color: var(--accent); }
-a, button, input, textarea, select, summary { outline-offset: 3px; }
-:focus-visible { outline: 3px solid var(--focus); }
-::selection { color: light-dark(#0c2a83, #e9eaf0); background: light-dark(#dce6fd, #444c59); }
-p, h1, h2, h3, dl, dd, ul, ol { margin: 0; }
-h1, h2, h3 { line-height: 1.08; overflow-wrap: anywhere; }
-h1, h2 { font-weight: 670; }
-h1 { font-size: clamp(2.2rem, 4.4vw, 4.1rem); letter-spacing: -.055em; }
-h2 { font-size: clamp(1.45rem, 2vw, 2rem); letter-spacing: -.035em; }
-h3 { font-weight: 650; font-size: 1.04rem; }
-p, dd { overflow-wrap: anywhere; }
-p { line-height: 1.55; }
-label:not(.check) { display: grid; gap: .45rem; font-weight: 600; font-size: .88rem; }
-input, select, textarea {
-  width: 100%; min-width: 0; border: 1px solid var(--dark-rule); border-radius: 9px;
-  color: var(--ink); background: var(--input); padding: .65rem .8rem; line-height: 1.35;
-}
-textarea { resize: vertical; }
-input::placeholder, textarea::placeholder { color: var(--muted); }
-input[type=checkbox] { width: 1.15rem; height: 1.15rem; flex: 0 0 auto; accent-color: var(--accent); }
-summary { color: var(--accent); font-weight: 650; }
+/* Shared controls, layout and page styles from dev_2, in their original order.
+   They share one layer so specificity decides between them exactly as before. */
+@layer components {
 .primary, .secondary, .plain-button, .danger-button {
   display: inline-flex; align-items: center; justify-content: center; gap: .45rem; min-height: 39px;
   border: 1px solid transparent; border-radius: 9px; padding: .55rem .8rem; font-weight: 650;
@@ -107,13 +17,11 @@ summary { color: var(--accent); font-weight: 650; }
 .text-button[aria-pressed=true] { background: var(--pale); border-radius: 2px; }
 .danger-text { color: var(--danger); }
 .muted, .help { color: var(--muted); }
-.help { font-size: .83rem; }
+/* In dev_2 `label:not(.check)` outranked `.help`; base now sits in a lower layer, so labels are excluded here. */
+.help:where(:not(label)) { font-size: .83rem; }
 .notice { max-width: 100%; border-left: 3px solid var(--accent); background: var(--pale); padding: .65rem .85rem; font-size: .9rem; }
 .notice.danger { color: light-dark(#772322, #e9c0b9); background: light-dark(#faeae5, #3b2c2c); border-color: var(--danger); }
 .notice.success { color: light-dark(#22553f, #c4d4c6); background: light-dark(#e6efe7, #2d3933); border-color: var(--good); }
-.sr-only, .skip-link:not(:focus) { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
-  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.skip-link:focus { position: fixed; z-index: 10; top: .5rem; left: .5rem; padding: .5rem .8rem; background: var(--input); }
 .stack { display: grid; align-content: start; gap: 1rem; min-width: 0; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
 .self-start { justify-self: start; }
@@ -121,7 +29,7 @@ summary { color: var(--accent); font-weight: 650; }
 .check { display: flex; align-items: center; gap: .55rem; cursor: pointer; font-weight: 600; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; }
 dialog { width: min(92vw, 480px); max-height: 87dvh; border: 1px solid var(--dark-rule); border-radius: 8px;
-  background: var(--sheet); color: var(--ink); padding: 1.5rem; box-shadow: 0 18px 60px #10242c35; }
+  background: var(--sheet); color: var(--ink); padding: 1.5rem; box-shadow: var(--elevation-3); }
 dialog::backdrop { background: #17232974; }
 dialog .actions { justify-content: flex-end; }
 
@@ -283,11 +191,6 @@ dialog .actions { justify-content: flex-end; }
 .markdown ul, .markdown ol { padding-left: 1.4rem; }
 .markdown blockquote { margin: .5rem 0; border-left: 2px solid var(--accent); padding-left: .75rem; }
 .markdown table { display: block; overflow-x: auto; }
-pre { max-width: 100%; min-width: 0; overflow-x: auto; margin: .35rem 0; padding: .7rem; border-radius: 8px; background: var(--inset); }
-code { font-family: ui-monospace, Consolas, monospace; font-size: .88em; }
-.hljs-keyword, .hljs-title, .hljs-built_in { color: light-dark(#315250, #acbdd1); }
-.hljs-string, .hljs-number, .hljs-literal { color: light-dark(#752923, #d5b3a7); }
-.hljs-comment { color: light-dark(#53675b, #adbbb2); }
 .file-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .45rem; }
 .file-list li { min-width: 0; overflow-wrap: anywhere; }
 .file-list.picked { grid-column: 1 / -1; padding: .15rem .3rem; }
@@ -352,6 +255,4 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: .88em; }
   .record .actions { justify-content: flex-start; }
   .form-grid { grid-template-columns: 1fr; }
 }
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
