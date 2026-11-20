@@ -98,11 +98,11 @@
   :root[data-density="compact"] { --space-1: 3px; --space-2: 6px; --space-3: 9px; --space-4: 12px; --space-5: 16px; --space-6: 18px; --space-7: 24px; --space-8: 32px; --space-9: 36px; --space-10: 48px; }
   :root[data-density="spacious"] { --space-1: 5px; --space-2: 10px; --space-3: 15px; --space-4: 20px; --space-5: 26px; --space-6: 30px; --space-7: 40px; --space-8: 50px; --space-9: 60px; --space-10: 80px; }
 
-  :root[data-font="inter"] { --font-sans: "Inter", "Segoe UI", system-ui, sans-serif; }
-  :root[data-font="manrope"] { --font-sans: "Manrope", "Segoe UI", system-ui, sans-serif; }
+  :root[data-font="inter"] { --font-sans: "Inter Variable", "Segoe UI", system-ui, sans-serif; }
+  :root[data-font="manrope"] { --font-sans: "Manrope Variable", "Segoe UI", system-ui, sans-serif; }
   :root[data-font="plex"] { --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; }
-  :root[data-code-font="jetbrains"] { --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace; }
-  :root[data-code-font="fira"] { --font-mono: "Fira Code", ui-monospace, Consolas, monospace; }
+  :root[data-code-font="jetbrains"] { --font-mono: "JetBrains Mono Variable", ui-monospace, Consolas, monospace; }
+  :root[data-code-font="fira"] { --font-mono: "Fira Code Variable", "Fira Code", ui-monospace, Consolas, monospace; }
 
   :root[data-font-scale="90"] { font-size: 90%; }
   :root[data-font-scale="110"] { font-size: 110%; }

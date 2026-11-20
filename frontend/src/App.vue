@@ -2,6 +2,7 @@
 import { computed, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useSession } from './session'
+import UiToast from './components/ui/UiToast.vue'
 
 const account = useSession()
 const route = useRoute()
@@ -44,4 +45,5 @@ watch(() => account.account, (value, previous) => {
   <main id="main" tabindex="-1">
     <RouterView />
   </main>
+  <UiToast />
 </template>

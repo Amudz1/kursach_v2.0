@@ -22,11 +22,14 @@ const router = createRouter({
     { path: '/plans', name: 'plans', component: () => import('./pages/PlansPage.vue') },
     { path: '/profile', name: 'profile', component: () => import('./pages/ProfilePage.vue') },
     { path: '/admin', name: 'admin', component: () => import('./pages/AdminPage.vue') },
+    // The component showcase exists only in development builds.
+    ...(import.meta.env.DEV ? [{ path: '/dev/ui', name: 'dev-ui', component: () => import('./pages/UiShowcasePage.vue') }] : []),
     { path: '/:pathMatch(.*)*', redirect: '/chats' },
   ],
 })
 
 router.beforeEach(async (to) => {
+  if (to.name === 'dev-ui') return true
   const session = useSession(pinia)
   await session.ready()
   if (!session.account) return to.name === 'login' ? true : { name: 'login' }
