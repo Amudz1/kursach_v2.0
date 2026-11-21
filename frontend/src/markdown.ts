@@ -18,9 +18,9 @@ const parser = new Marked({
     code({ text, lang }) {
       const first = lang?.trim().toLowerCase().split(/\s+/)[0] ?? ''
       const name = aliases[first] ?? first
-      const language = hljs.getLanguage(name) && text.length < 30000 ? name : 'plaintext'
+      const language = /^[a-z0-9-]+$/.test(name) && hljs.getLanguage(name) && text.length < 30000 ? name : 'plaintext'
       const value = hljs.highlight(text, { language, ignoreIllegals: true }).value
-      return `<pre><code class="hljs">${value}</code></pre>`
+      return `<pre><code class="hljs" data-language="${language}">${value}</code></pre>`
     },
   },
 })
@@ -28,7 +28,7 @@ const parser = new Marked({
 export function markdown(text: string) {
   return DOMPurify.sanitize(parser.parse(text, { async: false }), {
     USE_PROFILES: { html: true },
-    FORBID_TAGS: ['img', 'style', 'form', 'video', 'audio', 'iframe', 'object'],
+    FORBID_TAGS: ['img', 'style', 'form', 'video', 'audio', 'iframe', 'object', 'button', 'input', 'select', 'textarea'],
     FORBID_ATTR: ['style', 'srcset'],
   })
 }

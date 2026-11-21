@@ -228,11 +228,14 @@ export function useChat() {
     try { await create() } catch (reason) { error.value = explain(reason) }
   }
 
-  async function patch(body: Partial<Pick<Chat, 'title' | 'isPinned'>>) {
-    const id = selectedId.value
+  async function patch(body: Partial<Pick<Chat, 'title' | 'isPinned'>>, id = selectedId.value) {
     if (!id) return false
     error.value = ''
-    try { await api<void>(`/chats/${id}`, { method: 'PATCH', body }); await Promise.all([loadChats(), loadSelected(id)]); return true }
+    try {
+      await api<void>(`/chats/${id}`, { method: 'PATCH', body })
+      await Promise.all([loadChats(), loadProjectChats(), id === selectedId.value ? loadSelected(id) : undefined])
+      return true
+    }
     catch (reason) { error.value = explain(reason); return false }
   }
 

@@ -2,7 +2,7 @@
 import { onBeforeUnmount, ref, useId } from 'vue'
 
 // Shows after 400 ms on hover and at once on keyboard focus; Esc hides it (ТЗ 5, 10).
-const props = withDefaults(defineProps<{ text: string; placement?: 'top' | 'bottom'; delay?: number; disabled?: boolean }>(),
+const props = withDefaults(defineProps<{ text: string; placement?: 'top' | 'bottom'; alignEnd?: boolean; delay?: number; disabled?: boolean }>(),
   { placement: 'top', delay: 400 })
 const id = `tip-${useId()}`
 const open = ref(false)
@@ -29,7 +29,7 @@ onBeforeUnmount(() => window.clearTimeout(timer))
   <span class="tooltip-anchor" @pointerenter="show()" @pointerleave="hide" @focusin="onFocus" @focusout="hide"
     @keydown.esc="hide" @pointerdown="hide">
     <slot :describedby="id" />
-    <span v-if="!disabled" :id="id" role="tooltip" class="tooltip" :class="[placement, { open }]">{{ text }}</span>
+    <span v-if="!disabled" :id="id" role="tooltip" class="tooltip" :class="[placement, { open, 'align-end': alignEnd }]">{{ text }}</span>
   </span>
 </template>
 
@@ -45,4 +45,6 @@ onBeforeUnmount(() => window.clearTimeout(timer))
 .tooltip.top { bottom: calc(100% + 6px); }
 .tooltip.bottom { top: calc(100% + 6px); transform: translate(-50%, -4px); }
 .tooltip.open { opacity: 1; transform: translate(-50%, 0); visibility: visible; }
+.tooltip.align-end { left: auto; right: 0; transform: translateY(-4px); max-width: min(16rem, 70vw); }
+.tooltip.align-end.open { transform: translateY(0); }
 </style>

@@ -60,7 +60,7 @@ defineExpose({ hide, align: props.align })
 <template>
   <div ref="root" class="ui-dropdown">
     <slot name="trigger" :open="open" :toggle="toggle" :attrs="{
-      'aria-haspopup': 'menu', 'aria-expanded': open, 'aria-controls': id, 'aria-label': label,
+      'aria-haspopup': 'menu' as const, 'aria-expanded': open, 'aria-controls': id, 'aria-label': label,
       onClick: toggle, onKeydown: onTriggerKey }" />
     <Transition name="ui-pop">
       <div v-if="open" :id="id" ref="menu" class="menu" :class="align" role="menu" :aria-label="label"

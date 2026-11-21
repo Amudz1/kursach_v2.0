@@ -25,6 +25,17 @@ const background = () => page.evaluate(() => getComputedStyle(document.documentE
 const tint = () => page.locator('html').getAttribute('data-tint')
 const customColor = page.getByLabel('Свой цвет', { exact: true })
 
+async function goTo(label) {
+  const menu = action('Открыть меню')
+  if (await menu.isVisible()) await menu.click()
+  await nav(label).click()
+}
+
+async function openProfile() {
+  await action('Меню аккаунта').click()
+  await page.getByRole('menuitem', { name: 'Профиль', exact: true }).click()
+}
+
 async function readableColor(selector) {
   const contrast = await page.locator(selector).evaluate((element) => {
     const canvas = document.createElement('canvas')
@@ -149,7 +160,7 @@ try {
   await write('chat-dark.png')
   await action('Показать список диалогов').click()
   await history.getByText('Коллекции в C#', { exact: true }).waitFor()
-  await page.locator('.account-link').click()
+  await openProfile()
   await page.getByRole('radio', { name: 'Светлая' }).check()
   await page.emulateMedia({ colorScheme: 'dark' })
   assert.equal(await background(), lightBackground)
@@ -185,7 +196,7 @@ try {
   await noOverflow()
   await write('chat-desktop.png')
 
-  await nav('Персонализация').click()
+  await goTo('Персонализация')
   await heading('Проверка ответа').waitFor()
   await action('Редактор').click()
   assert.equal(await page.getByLabel('Длина ответа').inputValue(), 'short')
@@ -224,7 +235,7 @@ try {
 
   await page.setViewportSize({ width: 768, height: 900 })
   await noOverflow()
-  await nav('Диалоги').click()
+  await goTo('Диалоги')
   await noOverflow()
   await mobileHistory()
   await page.setViewportSize({ width: 360, height: 800 })
@@ -235,11 +246,19 @@ try {
   await page.getByText('Подключено', { exact: true }).waitFor()
   await write('chat-mobile.png')
   await mobileHistory()
-  await nav('Персонализация').click()
+  await goTo('Персонализация')
   await heading('Проверка ответа').waitFor()
   assert.equal(await page.getByLabel('Длина ответа').inputValue(), 'long')
-  const mobileNav = await topNavigation.boundingBox()
-  assert.ok(mobileNav.y >= 45 && mobileNav.y + mobileNav.height < 105, 'Mobile navigation must stay at the top on its own row')
+  const mobileHeader = await page.locator('.topbar').boundingBox()
+  assert.ok(mobileHeader.height <= 56, 'Mobile header must fit within 56 pixels')
+  await topNavigation.waitFor({ state: 'hidden' })
+  await action('Открыть меню').click()
+  const drawer = page.getByRole('dialog', { name: 'Меню' })
+  await drawer.waitFor()
+  assert.equal(await drawer.evaluate((element) => element.contains(document.activeElement)), true)
+  await page.keyboard.press('Escape')
+  await drawer.waitFor({ state: 'hidden' })
+  assert.equal(await action('Открыть меню').evaluate((element) => element === document.activeElement), true)
   await page.getByRole('link', { name: 'К проверке ↓' }).click()
   await page.getByText('Что такое коллекция?', { exact: true }).waitFor()
   await action('Контекст и память').click()
@@ -258,12 +277,12 @@ try {
   await page.keyboard.press('Tab')
   assert.ok(await page.evaluate(() => document.activeElement?.matches(':focus-visible')), 'Keyboard focus must be visible')
 
-  await nav('Память').click()
+  await goTo('Память')
   await heading('Добавить факт').waitFor()
   await page.getByLabel('Что запомнить').fill('Изучаю тестирование C#')
   await action('Сохранить факт').click()
   await page.getByText('Изучаю тестирование C#', { exact: true }).waitFor()
-  await nav('Тарифы').click()
+  await goTo('Тарифы')
   await heading('Тарифы').waitFor()
   await page.getByText('Токены в день', { exact: true }).first().waitFor()
   await page.getByRole('button', { name: 'Подключить', exact: true }).first().click()
@@ -272,7 +291,7 @@ try {
   await page.getByText('Оплата была демонстрационной', { exact: false }).waitFor()
 
   await page.setViewportSize({ width: 1440, height: 900 })
-  await nav('Диалоги').click()
+  await goTo('Диалоги')
   await heading('Проекты').waitFor()
   await heading('Все диалоги').waitFor()
   assert.equal(await nav('Пространства').count(), 0)
@@ -339,7 +358,7 @@ try {
   await history.getByText('Коллекции в C#', { exact: true }).waitFor()
   await history.getByText('Диалог из Claude', { exact: true }).waitFor()
   await write('workspaces.png')
-  await nav('Диалоги').click()
+  await goTo('Диалоги')
   await heading('Новый диалог').waitFor()
   await history.getByText('Диалог из Claude', { exact: true }).click()
   await heading('Диалог из Claude').waitFor()
@@ -365,7 +384,7 @@ try {
   await rules.getByText('Выключена', { exact: true }).waitFor()
   await action('Закрыть').click()
 
-  await page.locator('.account-link').click()
+  await openProfile()
   await heading('Личная статистика').waitFor()
   await page.setViewportSize({ width: 360, height: 800 })
   await customColor.waitFor()

@@ -52,10 +52,6 @@ dialog .actions { justify-content: flex-end; }
 .header-balance { display: inline-flex; gap: .42rem; align-items: center; color: var(--accent-dark); text-decoration: none;
   padding: .38rem .25rem; border-radius: 6px; white-space: nowrap; font-size: .76rem; font-weight: 650; font-variant-numeric: tabular-nums; }
 .header-balance:hover { text-decoration: underline; }
-.balance-mark { width: .47rem; height: .47rem; transform: rotate(45deg); border: 1px solid var(--accent); }
-.account-link { display: inline-flex; border-radius: 50%; color: var(--ink); text-decoration: none; font-weight: 700; font-size: .85rem; }
-.avatar { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--inset-hover); }
-.account-link:hover .avatar, .account-link.router-link-active .avatar { color: var(--on-fill); background: var(--contrast-fill); }
 .page { width: min(100%, 1200px); min-height: calc(100dvh - var(--header)); margin: 0 auto; padding: clamp(1.4rem, 4vw, 4rem) clamp(1rem, 3vw, 2.5rem) 4rem; }
 .narrow-page { max-width: 650px; }
 .page-heading { padding-bottom: 1.25rem; margin-bottom: 1.65rem; border-bottom: 1px solid var(--rule); }
@@ -219,16 +215,7 @@ dialog .actions { justify-content: flex-end; }
 .stat-strip span { font-size: .78rem; color: var(--muted); }
 .account-record select { width: auto; max-width: 100%; }
 
-@media (max-width: 900px) {
-  :root { --header: 104px; }
-  .topbar { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 52px 1fr; gap: 0 .45rem; padding: 0 .75rem .45rem; }
-  .top-navigation { grid-column: 1 / -1; grid-row: 2; justify-self: center; width: min(100%, 520px); overflow-x: auto; scrollbar-width: none; }
-  .top-navigation a { flex: 1 0 auto; min-width: 0; padding-inline: .28rem; font-size: clamp(.67rem, 2.35vw, .83rem); }
-  .top-navigation a:focus-visible { outline-offset: -3px; }
-  .header-account { grid-column: 2; grid-row: 1; }
-  .topbar .brand { font-size: 1.8rem; }
-  .topbar .brand-mark { width: 31px; height: 31px; }
-}
+@media (max-width: 900px) { :root { --header: 56px; } }
 @media (max-width: 780px) {
   .workspace, .workspace.history-open { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
     gap: .4rem; padding: .5rem; height: max(390px, calc(100dvh - var(--header))); }
