@@ -231,7 +231,8 @@ async function importTheme(event: Event) {
 .preset-sample i { display: block; width: 45%; height: 3px; border-radius: var(--radius-full); background: var(--sample-line, var(--accent)); }
 .preset-sample i:nth-child(2) { width: 70%; }
 .preset-sample i:nth-child(3) { width: 30%; }
-[data-choice="studio"] { --sample-bg: var(--studio-ink); --sample-line: var(--studio-amber); }
+[data-choice="studio"] { --sample-bg: var(--studio-sand); --sample-line: var(--studio-terracotta); }
+[data-choice="classic"] { --sample-bg: var(--classic-paper); --sample-line: var(--classic-accent); }
 [data-choice="ultramarine"] { --sample-bg: var(--c-brand-100); --sample-line: var(--c-brand-600); }
 [data-choice="graphite"] { --sample-bg: var(--c-ink-800); --sample-line: yellowgreen; }
 [data-choice="midnight"] { --sample-bg: var(--c-brand-900); --sample-line: lightblue; }
@@ -247,6 +248,9 @@ async function importTheme(event: Event) {
 .preview-message.right { margin-inline-start: auto; }
 .preview-message.bubbles { width: fit-content; max-width: 100%; border-radius: var(--radius-xl); }
 .preview-message.flat { background: transparent; border-width: 0 0 1px; border-radius: 0; }
+:global(:root[data-preset="studio"] .preview-message.flat.user) {
+  background: var(--message-user-bg); border: 0; border-radius: var(--radius-lg) var(--radius-lg) var(--radius-xs) var(--radius-lg);
+}
 @media (max-width: 850px) {
   .appearance-grid { grid-template-columns: minmax(0, 1fr); }
   .preview-surface { position: static; grid-row: 1; }

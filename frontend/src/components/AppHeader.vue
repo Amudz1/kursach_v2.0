@@ -162,6 +162,7 @@ watch(() => route.fullPath, async () => {
 .nav-indicator.visible { opacity: 1; }
 :global(:root[data-preset="studio"] .nav-indicator) { background: var(--surface-3); border-bottom: 2px solid var(--accent); }
 :global(:root[data-preset="studio"] .top-navigation a[aria-current]) { color: var(--text); }
+:global(:root[data-preset="studio"] .topbar) { background: var(--surface-0); }
 .header-balance { display: grid; gap: 3px; min-width: 48px; min-height: 40px; align-content: center; text-align: center; }
 .balance-value { display: inline-flex; justify-content: center; align-items: center; gap: 4px; }
 .account-link, .menu-toggle { display: inline-grid; place-items: center; padding: 0; width: 40px; height: 40px; color: var(--text);
@@ -183,8 +184,8 @@ watch(() => route.fullPath, async () => {
 .drawer-nav a, .drawer-nav button { display: flex; gap: var(--space-3); align-items: center; min-height: 44px;
   padding: var(--space-2) var(--space-3); border: 1px solid transparent; border-radius: var(--radius-md); background: transparent;
   color: var(--text); text-decoration: none; text-align: left; }
-.drawer-nav :is(a, button):hover { background: var(--surface-2); }
-.drawer-nav a[aria-current] { background: var(--surface-3); border-color: var(--accent); font-weight: 700; }
+.drawer-nav :is(a, button):hover { background: var(--panel-active); }
+.drawer-nav a[aria-current] { background: var(--panel-active); border-color: var(--accent); font-weight: 700; }
 @media (max-width: 900px) {
   .topbar { grid-template: auto / minmax(0, 1fr) auto; gap: 4px; padding: 0 8px; }
   .top-navigation { display: none; }

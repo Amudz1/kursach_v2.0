@@ -57,11 +57,11 @@ onBeforeUnmount(() => { if (open.value) unlockScroll() })
 
 <style scoped>
 .drawer-layer { position: fixed; inset: 0; z-index: 50; }
-.drawer-backdrop { position: absolute; inset: 0; background-color: color-mix(in srgb, var(--c-ink-900) 45%, transparent); }
+.drawer-backdrop { position: absolute; inset: 0; background-color: var(--overlay); }
 .drawer {
   position: absolute; inset: 0 auto 0 0; display: flex; flex-direction: column; gap: var(--space-1);
   width: min(84vw, 300px); padding: var(--space-3); overflow-y: auto; overscroll-behavior: contain;
-  background-color: var(--surface-1); border-right: 1px solid var(--border); box-shadow: var(--elevation-3);
+  background-color: var(--panel-surface); border-right: 1px solid var(--border); box-shadow: var(--elevation-3);
 }
 .drawer:focus { outline: none; }
 .drawer-enter-active, .drawer-leave-active { transition: opacity var(--motion-base) var(--ease-out); }

@@ -89,7 +89,8 @@ onMounted(load)
 .onboarding-presets i { height: 4px; width: 70%; border-radius: var(--radius-full); background: var(--mini-ink, var(--accent)); }
 .onboarding-presets i + i { width: 45%; justify-self: end; }
 [data-choice="ultramarine"] { --mini-bg: var(--c-brand-100); --mini-ink: var(--c-brand-600); }
-[data-choice="studio"] { --mini-bg: var(--studio-ink); --mini-ink: var(--studio-amber); }
+[data-choice="studio"] { --mini-bg: var(--studio-sand); --mini-ink: var(--studio-terracotta); }
+[data-choice="classic"] { --mini-bg: var(--classic-paper); --mini-ink: var(--classic-accent); }
 [data-choice="mint"] { --mini-bg: honeydew; --mini-ink: var(--cat-5); }
 [data-choice="midnight"] { --mini-bg: var(--c-brand-900); --mini-ink: lightblue; }
 </style>

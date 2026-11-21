@@ -21,8 +21,10 @@ const nav = (label) => page.getByRole('navigation', { name: 'Основная н
 const history = page.getByRole('navigation', { name: 'История диалогов' })
 const lightBackground = 'rgb(243, 238, 228)'
 const darkBackground = 'rgb(31, 32, 34)'
-const studioPaper = 'rgb(247, 243, 234)'
-const studioDark = 'rgb(24, 38, 58)'
+const studioPaper = 'rgb(255, 248, 237)'
+const studioDark = 'rgb(37, 27, 22)'
+const studioPanel = { light: 'rgb(245, 231, 210)', dark: 'rgb(48, 34, 27)' }
+const backgroundOf = (locator) => locator.evaluate((element) => getComputedStyle(element).backgroundColor)
 const background = () => page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)
 const tint = () => page.locator('html').getAttribute('data-tint')
 const customColor = page.getByLabel('Свой цвет', { exact: true })
@@ -75,8 +77,13 @@ async function verifyPresetContrast() {
       ['text', 'surface-0'], ['text', 'surface-1'], ['text', 'surface-2'], ['text', 'surface-3'],
       ['text-muted', 'surface-0'], ['text-muted', 'surface-1'], ['text-muted', 'surface-2'],
       ['accent', 'surface-1'], ['accent-2', 'surface-1'], ['btn-primary-text', 'btn-primary-bg'],
-      ['studio-sidebar-ink', 'studio-sidebar'], ['studio-sidebar-muted', 'studio-sidebar-fill'],
+      ['text', 'panel-surface'], ['text-muted', 'panel-surface'], ['text-muted', 'panel-active'],
       ...['danger', 'success', 'warning', 'info'].map((tone) => [`status-${tone}-text`, `status-${tone}-bg`]),
+    ]
+    const studioPairs = [
+      ['studio-olive', 'studio-olive-wash'], ['studio-plum', 'studio-plum-wash'],
+      ['studio-bookmark', 'surface-0', 3], ['studio-bookmark', 'panel-surface', 3],
+      ['dark-rule', 'surface-1', 3], ['dark-rule', 'panel-surface', 3], ['focus', 'panel-active', 3],
     ]
     const failures = []
     try {
@@ -84,10 +91,10 @@ async function verifyPresetContrast() {
         root.dataset.preset = preset
         for (const mode of ['light', 'dark']) {
           root.dataset.theme = mode
-          for (const [foreground, background] of pairs) {
+          for (const [foreground, background, threshold] of preset === 'studio' ? [...pairs, ...studioPairs] : pairs) {
             const values = [luminosity(foreground), luminosity(background)]
             const ratio = (Math.max(...values) + .05) / (Math.min(...values) + .05)
-            const minimum = preset === 'contrast' && foreground.startsWith('text') ? 7 : 4.5
+            const minimum = threshold ?? (preset === 'contrast' && foreground.startsWith('text') ? 7 : 4.5)
             if (ratio < minimum) failures.push(`${preset}/${mode} ${foreground} on ${background}: ${ratio.toFixed(2)} < ${minimum}`)
           }
         }
@@ -106,6 +113,37 @@ async function verifyPresetContrast() {
   await page.evaluate(() => { document.documentElement.dataset.motion = 'off' })
   assert.equal(await page.locator('.auth-side').evaluate((element) => getComputedStyle(element, '::before').animationName), 'none')
   await page.evaluate(() => { document.documentElement.dataset.motion = 'full' })
+}
+
+async function verifyStudioLogin() {
+  const firstPaint = await browser.newContext({ javaScriptEnabled: false })
+  try {
+    const boot = await firstPaint.newPage()
+    for (const [mode, paper] of [['light', studioPaper], ['dark', studioDark]]) {
+      await boot.emulateMedia({ colorScheme: mode })
+      await boot.goto(`${base}/login`)
+      assert.equal(await backgroundOf(boot.locator('html')), paper)
+    }
+  } finally { await firstPaint.close() }
+
+  for (const [mode, paper] of [['light', studioPaper], ['dark', studioDark]]) {
+    await page.emulateMedia({ colorScheme: mode, reducedMotion: 'reduce' })
+    if (mode === 'dark') await page.reload()
+    await heading('Войти в Budz').waitFor()
+    assert.equal(await background(), paper)
+    assert.equal(await backgroundOf(page.locator('.auth-side')), studioPanel[mode])
+    await readableColor('.auth-side')
+    for (const [layout, width] of [['desktop', 1440], ['mobile', 320]]) {
+      await page.setViewportSize({ width, height: 900 })
+      await noOverflow()
+      if (process.env.BUDZ_VISUAL === '1') {
+        await page.evaluate(() => document.fonts.ready)
+        await write(`studio-${mode}-login-${layout}.png`)
+      }
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'no-preference' })
 }
 
 async function captureAppearanceMatrix() {
@@ -144,8 +182,13 @@ async function captureAppearanceMatrix() {
           if (!(await history.isVisible())) await action('Показать список диалогов').click()
           if (preset === 'studio') {
             await heading('Что хотите разобрать?').waitFor()
+            assert.equal(await backgroundOf(page.locator('.history')), studioPanel[mode])
             await page.evaluate(() => document.fonts.ready)
             await page.screenshot({ path: path.join(matrix, `${preset}-${mode}-start-desktop.png`), animations: 'disabled' })
+            await page.setViewportSize({ width: 320, height: 820 })
+            await noOverflow()
+            await page.screenshot({ path: path.join(matrix, `${preset}-${mode}-start-mobile.png`), animations: 'disabled' })
+            await page.setViewportSize({ width: 1440, height: 900 })
           }
           const thread = history.getByRole('link', { name: 'Коллекции в C#', exact: true })
           await thread.click()
@@ -162,6 +205,16 @@ async function captureAppearanceMatrix() {
           await noOverflow()
           if (screen.id === 'chat' && id === 'mobile') assert.ok((await page.locator('.conversation-header').boundingBox()).height <= 56)
           await page.screenshot({ path: path.join(matrix, `${preset}-${mode}-${screen.id}-${id}.png`), animations: 'disabled' })
+          if (screen.id === 'chat' && id === 'mobile' && preset === 'studio') {
+            await action('Открыть меню').click()
+            const drawer = page.getByRole('dialog', { name: 'Меню', exact: true })
+            assert.equal(await backgroundOf(drawer), studioPanel[mode])
+            await page.locator('.drawer-enter-active').waitFor({ state: 'hidden' })
+            await page.screenshot({ path: path.join(matrix, `${preset}-${mode}-menu-mobile.png`), animations: 'disabled' })
+            await page.keyboard.press('Escape')
+            await drawer.waitFor({ state: 'hidden' })
+            await mobileHistory(studioPanel[mode], path.join(matrix, `${preset}-${mode}-history-mobile.png`))
+          }
         }
       }
     }
@@ -195,13 +248,15 @@ async function noOverflow() {
 async function answerEnds(text) {
   await page.locator('.message.assistant').last().getByText(text, { exact: false }).waitFor()
 }
-async function mobileHistory() {
+async function mobileHistory(panelColor, screenshot) {
   await history.waitFor({ state: 'hidden' })
   await action('Показать список диалогов').click()
   await history.waitFor({ state: 'visible' })
   const panel = page.getByRole('dialog', { name: 'История диалогов', exact: true })
+  if (panelColor) assert.equal(await backgroundOf(panel), panelColor)
   assert.equal(await panel.evaluate((element) => element.matches(':modal') && element.contains(document.activeElement)), true)
   await panel.getByRole('button', { name: 'Новый диалог', exact: true }).waitFor()
+  if (screenshot) await page.screenshot({ path: screenshot, animations: 'disabled' })
   await page.keyboard.press('Escape')
   await history.waitFor({ state: 'hidden' })
   assert.equal(await action('Показать список диалогов').evaluate((button) => document.activeElement === button), true)
@@ -212,6 +267,7 @@ try {
   await heading('Войти в Budz').waitFor()
   assert.equal(await background(), studioPaper)
   await verifyPresetContrast()
+  await verifyStudioLogin()
   await page.evaluate(() => { localStorage.setItem('budz.theme', 'system') })
   await page.getByRole('radio', { name: 'Регистрация', exact: true }).check()
   await page.getByLabel('Имя пользователя').fill(user)

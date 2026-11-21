@@ -42,7 +42,7 @@ async function submit() {
 <template>
   <div class="auth-shell">
     <div class="auth-side">
-      <div class="brand auth-brand"><span class="brand-mark" aria-hidden="true">b<span>.</span></span>budz.</div>
+      <div class="brand auth-brand"><span class="brand-mark" aria-hidden="true">b<span>.</span></span><span>budz<span class="auth-brand-dot">.</span></span></div>
       <div class="auth-heading">
         <h1>Ассистент с&nbsp;настройкой под&nbsp;вас</h1>
         <p>Выберите роль ассистента и задайте, как он отвечает. Вы управляете тем, что Budz запоминает.</p>
@@ -72,10 +72,11 @@ async function submit() {
 <style scoped>
 .auth-side { position: relative; isolation: isolate; overflow: hidden; }
 .auth-side::before { content: ''; position: absolute; inset: -22%; z-index: -1; opacity: .8;
-  background-image: radial-gradient(ellipse at 25% 20%, color-mix(in oklab, var(--accent-2) 65%, transparent), transparent 55%),
-    radial-gradient(ellipse at 75% 75%, color-mix(in oklab, var(--accent) 55%, transparent), transparent 58%);
+  background-image: radial-gradient(ellipse at 25% 20%, var(--auth-wash-secondary, color-mix(in oklab, var(--accent-2) 65%, transparent)), transparent 55%),
+    radial-gradient(ellipse at 75% 75%, var(--auth-wash-primary, color-mix(in oklab, var(--accent) 55%, transparent)), transparent 58%);
   animation: drift 16s var(--ease-out) alternate infinite; }
 @keyframes drift { from { transform: scale(1) translate(-2%, -3%); } to { transform: scale(1.18) translate(5%, 4%); } }
 .auth-form { align-content: start; }
+.auth-brand-dot { color: var(--studio-bookmark); }
 .strength { display: grid; gap: var(--space-1); font-size: var(--font-size-xs); color: var(--text-muted); }
 </style>

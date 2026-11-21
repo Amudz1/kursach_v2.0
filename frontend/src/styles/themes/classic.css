@@ -1,11 +1,13 @@
 /* Classic theme: the dev_2 colours, unchanged (ТЗ 4.2). New tokens are added on top of them. */
 @layer tokens {
   :root {
-    --base-paper: light-dark(#f3eee4, #1f2022);
+    --classic-paper: light-dark(#f3eee4, #1f2022);
+    --classic-accent: light-dark(#3d5949, #b6bec5);
+    --base-paper: var(--classic-paper);
     --base-sheet: light-dark(#fffcf6, #25272a);
     --base-input: light-dark(#ffffff, #212325);
     --base-message: light-dark(#fffdfa, #282a2d);
-    --base-accent: light-dark(#3d5949, #b6bec5);
+    --base-accent: var(--classic-accent);
     --base-accent-dark: light-dark(#284135, #c6cbd0);
     --base-pale: light-dark(#e9ede2, #303538);
     --base-rule: light-dark(#e2d9ca, #3b3e42);
@@ -76,6 +78,9 @@
     --btn-primary-text: var(--on-fill);
     --message-user-bg: var(--inset);
     --composer-border: var(--dark-rule);
+    --panel-surface: var(--surface-2);
+    --panel-active: var(--surface-3);
+    --overlay: rgb(0 0 0 / .44);
   }
 
   :root[data-tint] {

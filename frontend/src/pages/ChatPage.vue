@@ -66,6 +66,8 @@ const showLatest = ref(false)
 const dragDepth = ref(0)
 const draftLength = computed(() => draft.value.length)
 const defaultIdeas = ['Разобрать сложную тему', 'Составить план', 'Поработать над текстом']
+const studioSuggestionColors = ['cat-7', 'cat-4'] as const
+const suggestionColors = computed(() => appearance.value.preset === 'studio' ? studioSuggestionColors : categoryColors)
 const chatGroups = computed(() => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -395,7 +397,7 @@ onUnmounted(() => {
               <button class="text-button" @click="rate(item, -1); feedbackTarget = ''">Без причины</button>
             </div>
             <div v-if="item.id === lastAnswer?.id && item.suggestions.length" class="suggestions" aria-label="Вопросы для продолжения">
-              <UiChip v-for="(idea, index) in item.suggestions" :key="idea" :category="categoryColors[index % categoryColors.length]"
+                <UiChip v-for="(idea, index) in item.suggestions" :key="idea" :category="suggestionColors[index % suggestionColors.length]"
                 :icon="Lightbulb" arrow @click="setComposer(idea)">{{ idea }}</UiChip>
             </div>
           </article>
@@ -477,18 +479,18 @@ onUnmounted(() => {
 .history {
   min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 var(--space-4) var(--space-4);
   scroll-padding-block-start: calc(84px + var(--space-2) + var(--space-6) + var(--space-3));
-  background: var(--studio-sidebar); color: var(--studio-sidebar-ink); --focus: var(--studio-sidebar-mark);
+  background: var(--panel-surface); color: var(--text); border-inline-end: 1px solid var(--border);
 }
 .history:focus { outline: none; }
 .history-tools { position: sticky; inset-block-start: 0; z-index: 2; display: grid; gap: var(--space-2);
-  padding-block: var(--space-6) var(--space-3); background: var(--studio-sidebar); }
+  padding-block: var(--space-6) var(--space-3); background: var(--panel-surface); }
 .history-toolbar { display: flex; align-items: center; gap: var(--space-2); }
-.history .history-new { min-height: 42px; justify-content: flex-start; color: inherit; background: var(--studio-sidebar-fill);
-  border-color: var(--studio-sidebar-rule); }
-.history .history-new:hover { border-color: var(--studio-sidebar-mark); }
-.history :deep(.ui-icon-button) { color: var(--studio-sidebar-ink); }
-.history :deep(.ui-icon-button:hover) { color: var(--studio-sidebar-mark); background: var(--studio-sidebar-fill); }
-.history-projects { margin-block: var(--space-2) var(--space-4); padding-block-end: var(--space-2); border-bottom: 1px solid var(--studio-sidebar-rule); }
+.history .history-new { min-height: 42px; justify-content: flex-start; color: inherit; background: var(--sheet);
+  border-color: var(--dark-rule); }
+.history .history-new:hover { background: var(--panel-active); border-color: var(--focus); }
+.history :deep(.ui-icon-button) { color: var(--text); }
+.history :deep(.ui-icon-button:hover) { color: var(--focus); background: var(--panel-active); }
+.history-projects { margin-block: var(--space-2) var(--space-4); padding-block-end: var(--space-2); border-bottom: 1px solid var(--border); }
 .history-project-heading { display: flex; align-items: center; gap: var(--space-1); }
 .history-project-heading h2 { flex: 1; font: 650 var(--font-size-sm)/1.4 var(--font-sans); }
 .history-project-heading h2 a { display: flex; align-items: center; min-height: 40px; gap: var(--space-2); color: inherit; text-decoration: none; }
@@ -496,32 +498,32 @@ onUnmounted(() => {
 .history-project-heading h2 svg { width: 16px; height: 16px; }
 .history-project-add { flex: 0 0 auto; display: grid; place-items: center; width: 32px; height: 32px; padding: 0;
   color: inherit; background: transparent; border: 1px solid transparent; border-radius: var(--radius-sm); }
-.history-project-add:hover { background: var(--studio-sidebar-fill); }
+.history-project-add:hover { background: var(--panel-active); }
 .history-project-add svg { transition: transform var(--motion-base) var(--ease-out); }
 .history-project-add .collapsed { transform: rotate(-90deg); }
 .history-project-list { display: grid; gap: var(--space-1); max-height: min(28vh, 17rem); overflow: auto; }
 .history-project-list a, .thread-row a { display: flex; align-items: center; gap: var(--space-2); min-height: 40px; min-width: 0;
   color: inherit; padding: var(--space-2); text-decoration: none; border-radius: var(--radius-md); overflow-wrap: anywhere; }
-.history-project-list a:is(:hover, [aria-current]), .thread-row:is(:hover, :focus-within) { background: var(--studio-sidebar-fill); }
+.history-project-list a:is(:hover, [aria-current]), .thread-row:is(:hover, :focus-within) { background: var(--panel-active); }
 .history-project-list a:focus-visible, .thread-row a:focus-visible { outline-offset: -2px; }
 .history-project-list .project-icon, .persona-dot {
-  --history-marker: color-mix(in srgb, var(--history-entity-color), var(--studio-sidebar-ink) 52%);
+  --history-marker: color-mix(in srgb, var(--history-entity-color), var(--text) 52%);
   color: var(--history-marker);
 }
 .search-form { position: relative; display: grid; align-items: center; }
-.search-icon { position: absolute; inset-inline-start: 10px; width: 16px; height: 16px; color: var(--studio-sidebar-muted); pointer-events: none; }
-.search-form input { min-height: 42px; padding-inline-start: 33px; color: inherit; background: transparent; border-color: var(--studio-sidebar-rule); }
-.search-form input::placeholder { color: var(--studio-sidebar-muted); }
-.thread-group h3 { margin: var(--space-3) 0 var(--space-1); padding-inline: var(--space-2); color: var(--studio-sidebar-muted);
+.search-icon { position: absolute; inset-inline-start: 10px; width: 16px; height: 16px; color: var(--text-muted); pointer-events: none; }
+.search-form input { min-height: 42px; padding-inline-start: 33px; color: inherit; background: var(--input); border-color: var(--dark-rule); }
+.search-form input::placeholder { color: var(--text-muted); }
+.thread-group h3 { margin: var(--space-3) 0 var(--space-1); padding-inline: var(--space-2); color: var(--text-muted);
   font: 650 var(--font-size-xs)/1.4 var(--font-sans); }
 .thread-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-radius: var(--radius-md); }
 .thread-row a { padding-inline-end: var(--space-1); background: transparent; box-shadow: none; }
-.thread-row:has(a[aria-current]) { background: var(--studio-sidebar-fill); box-shadow: inset 3px 0 var(--studio-sidebar-mark); }
-.thread-row a[aria-current] { font-weight: 650; }
+.thread-row:has(a[aria-current]) { background: var(--panel-active); box-shadow: inset 3px 0 var(--focus); }
+.thread-row a[aria-current] { font-weight: 700; }
 .thread-title { min-width: 0; }
 .thread-title > span, .thread-title small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.thread-title small, .history .muted, .history .plain-button { color: var(--studio-sidebar-muted); }
-.history .plain-button:hover { background: var(--studio-sidebar-fill); }
+.thread-title small, .history .muted, .history .plain-button { color: var(--text-muted); }
+.history .plain-button:hover { background: var(--panel-active); }
 .thread-pin { justify-self: end; margin-inline-end: 2px; }
 @media (hover: hover) {
   .thread-row:not(:hover, :focus-within) .thread-pin { opacity: 0; }
@@ -530,7 +532,7 @@ onUnmounted(() => {
 .project-icon, .history-project-add svg, .chat-control svg, .chat-menu > summary svg,
 .composer-action svg, .composer-attach svg { width: 17px; height: 17px; flex: 0 0 auto; }
 .mobile-history { inset: 0 auto 0 0; width: min(88vw, 330px); height: 100dvh; max-width: none; max-height: none;
-  margin: 0; padding: 0; overflow: hidden; background: var(--studio-sidebar); border: 0; border-radius: 0; }
+  margin: 0; padding: 0; overflow: hidden; background: var(--panel-surface); border: 0; border-radius: 0; }
 .mobile-history .history { height: 100%; }
 .conversation { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
   min-width: 0; min-height: 0; --chat-content-width: 702px; }
@@ -560,6 +562,21 @@ onUnmounted(() => {
 .chat-start h1 span { color: var(--accent); }
 .start-choices { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-top: var(--space-4); }
 .start-choices button { min-height: 40px; font-weight: 500; }
+:global(:root[data-preset="studio"] .start-choices button) {
+  --idea-color: var(--studio-olive);
+  --idea-wash: var(--studio-olive-wash);
+  color: var(--idea-color); background: var(--idea-wash); border-color: color-mix(in srgb, var(--idea-color) 70%, var(--idea-wash));
+}
+:global(:root[data-preset="studio"] .start-choices button:nth-child(even)) {
+  --idea-color: var(--studio-plum);
+  --idea-wash: var(--studio-plum-wash);
+}
+:global(:root[data-preset="studio"] .start-choices button::before) {
+  content: ''; width: .5rem; height: .5rem; flex: 0 0 auto; border-radius: var(--radius-full); background: currentColor;
+}
+:global(:root[data-preset="studio"] .start-choices button:hover) {
+  background: color-mix(in srgb, var(--idea-wash), var(--idea-color) 6%);
+}
 .transcript { min-height: 0; min-width: 0; overflow: auto; overscroll-behavior-y: contain;
   padding: clamp(1rem, 3.75vh, 3rem) max(var(--space-4), calc((100% - var(--chat-content-width)) / 2)) var(--space-5); }
 .reading-heading { margin-block-end: var(--space-5); padding-block-end: var(--space-4); border-bottom: 1px solid var(--border); }

@@ -30,7 +30,7 @@
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; }
 dialog { width: min(92vw, 480px); max-height: 87dvh; border: 1px solid var(--dark-rule); border-radius: 8px;
   background: var(--sheet); color: var(--ink); padding: 1.5rem; box-shadow: var(--elevation-3); }
-dialog::backdrop { background: #17232974; }
+dialog::backdrop { background: var(--overlay); }
 dialog .actions { justify-content: flex-end; }
 
 .topbar { position: sticky; top: 0; z-index: 5; height: var(--header); padding: 0 clamp(1rem, 4vw, 3rem);
@@ -40,7 +40,7 @@ dialog .actions { justify-content: flex-end; }
   white-space: nowrap; font: 700 2rem/.95 var(--serif); letter-spacing: -.08em; }
 .brand-mark { display: inline-grid; place-content: center; grid-auto-flow: column; align-items: baseline; width: 34px; height: 34px;
   background: var(--brand-fill); color: #fff; border-radius: 4px; font: 700 1.35rem/.9 var(--serif); letter-spacing: -.065em; }
-.brand-mark span { color: light-dark(#aec1ff, #c8cdd7); }
+.brand-mark span { color: var(--brand-mark-dot, light-dark(#aec1ff, #c8cdd7)); }
 .brand-dot { color: var(--brand-accent); }
 .top-navigation { display: flex; align-items: center; gap: .15rem; padding: .23rem;
   background: var(--inset); border: 1px solid var(--rule); border-radius: 10px; }
@@ -90,10 +90,10 @@ dialog .actions { justify-content: flex-end; }
 .auth-shell { margin: clamp(1rem, 7vh, 5rem) auto; width: min(calc(100% - 2rem), 1000px); min-height: 580px;
   border: 1px solid var(--dark-rule); display: grid; grid-template-columns: 1.25fr 1fr; background: var(--sheet); }
 .auth-side { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; gap: 3rem;
-  min-width: 0; background: var(--feature); color: #fff; padding: clamp(1.25rem, 6vw, 4.5rem); }
-.auth-brand { color: #fff; align-self: start; }
+  min-width: 0; background: var(--auth-background, var(--feature)); color: var(--auth-text, white); padding: clamp(1.25rem, 6vw, 4.5rem); }
+.auth-brand { color: inherit; align-self: start; }
 .auth-heading { position: relative; z-index: 1; }
-.auth-heading p { color: var(--feature-ink); margin-top: 1.2rem; max-width: 36ch; }
+.auth-heading p { color: var(--auth-muted, var(--feature-ink)); margin-top: 1.2rem; max-width: 36ch; }
 .auth-decoration { width: 150px; height: 80px; opacity: .55; display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem; }
 .auth-decoration i { border: 1px solid light-dark(#aabdfa, #a9b3be); transform: skewY(-18deg); }
 .auth-form { min-width: 0; min-height: 100%; padding: clamp(1.4rem, 4vw, 3.4rem); align-content: center; display: grid; gap: 1.4rem; }
