@@ -58,35 +58,64 @@ public sealed class ChatReadHandlers(IAssistantData data, ChatAccess access, IPr
     {
         if (request.Limit is < 1 or > 50)
             return Result<MessagePage>.Fail(ErrorKind.Validation, "invalid_page", "Размер страницы должен быть от 1 до 50.");
-        if (await access.FindAsync(request.UserId, request.ChatId, false, cancellationToken) is null)
+        var chat = await access.FindAsync(request.UserId, request.ChatId, false, cancellationToken);
+        if (chat is null)
             return ChatAccess.NotFound<MessagePage>();
-
-        var query = data.Query<Message>().Where(message => message.ChatId == request.ChatId &&
-            message.Status != GenerationStatus.Superseded);
-        if (request.Before.HasValue)
+        var query = access.VisibleMessages(request.ChatId);
+        var cursorId = request.Around ?? request.After ?? request.Before;
+        Message? anchor = null;
+        if (cursorId.HasValue)
         {
-            var cursor = await data.FirstAsync(query.Where(message => message.Id == request.Before.Value), cancellationToken);
-            if (cursor is null)
+            anchor = await data.FirstAsync(query.Where(message => message.Id == cursorId.Value), cancellationToken);
+            if (anchor is null)
                 return Result<MessagePage>.Fail(ErrorKind.Validation, "invalid_cursor", "Указанное сообщение недоступно.");
-            query = query.Where(message => message.CreatedAt < cursor.CreatedAt ||
-                (message.CreatedAt == cursor.CreatedAt && message.Id.CompareTo(cursor.Id) < 0));
         }
-        var messages = await data.ListAsync(query.OrderByDescending(message => message.CreatedAt)
-            .ThenByDescending(message => message.Id).Take(request.Limit + 1), cancellationToken);
+        var (messages, nextBefore, nextAfter) = await ReadWindow(query, request, anchor, cancellationToken);
         var ids = messages.Select(message => message.Id).ToArray();
         var feedback = (await data.ListAsync(data.Query<MessageFeedback>().Where(item => item.UserId == request.UserId &&
             ids.Contains(item.MessageId)), cancellationToken)).ToDictionary(item => item.MessageId);
         var attachments = (await data.ListAsync(data.Query<Attachment>().Where(item => ids.Contains(item.MessageId)),
             cancellationToken)).ToLookup(item => item.MessageId,
                 item => new AttachmentView(item.Id, item.FileName, item.ContentType, item.Size));
-        var items = messages.Take(request.Limit).Reverse().Select(message =>
-            ToView(message, feedback.GetValueOrDefault(message.Id), attachments[message.Id].ToArray())).ToArray();
-        return Result<MessagePage>.Ok(new(items, messages.Count > request.Limit ? items[0].Id : null));
+        var bookmarks = chat.ExpiresAt.HasValue ? new HashSet<Guid>() : (await data.ListAsync(data.Query<MessageBookmark>()
+            .Where(item => item.UserId == request.UserId && ids.Contains(item.MessageId)).Select(item => item.MessageId), cancellationToken)).ToHashSet();
+        var items = messages.Select(message =>
+            ToView(message, feedback.GetValueOrDefault(message.Id), attachments[message.Id].ToArray(), bookmarks.Contains(message.Id))).ToArray();
+        return Result<MessagePage>.Ok(new(items, nextBefore, nextAfter));
     }
 
+    private async Task<(IReadOnlyList<Message> Items, Guid? Before, Guid? After)> ReadWindow(
+        IQueryable<Message> query, ListMessages request, Message? anchor, CancellationToken ct)
+    {
+        if (request.Around.HasValue && anchor is not null)
+        {
+            var beforeLimit = request.Limit / 2;
+            var afterLimit = request.Limit - beforeLimit - 1;
+            var older = await ReadBefore(ChatAccess.Before(query, anchor), beforeLimit, ct);
+            var newer = await ReadAfter(ChatAccess.After(query, anchor), afterLimit, ct);
+            var items = older.Take(beforeLimit).Reverse().Append(anchor).Concat(newer.Take(afterLimit)).ToArray();
+            return (items, older.Count > beforeLimit ? items[0].Id : null, newer.Count > afterLimit ? items[^1].Id : null);
+        }
+        if (request.After.HasValue && anchor is not null)
+        {
+            var newer = await ReadAfter(ChatAccess.After(query, anchor), request.Limit, ct);
+            var items = newer.Take(request.Limit).ToArray();
+            return (items, null, newer.Count > request.Limit ? items[^1].Id : null);
+        }
+        var olderPage = await ReadBefore(anchor is null ? query : ChatAccess.Before(query, anchor), request.Limit, ct);
+        var olderItems = olderPage.Take(request.Limit).Reverse().ToArray();
+        return (olderItems, olderPage.Count > request.Limit ? olderItems[0].Id : null, null);
+    }
+
+    private Task<List<Message>> ReadBefore(IQueryable<Message> query, int limit, CancellationToken ct) =>
+        data.ListAsync(query.OrderByDescending(message => message.CreatedAt).ThenByDescending(message => message.Id).Take(limit + 1), ct);
+
+    private Task<List<Message>> ReadAfter(IQueryable<Message> query, int limit, CancellationToken ct) =>
+        data.ListAsync(query.OrderBy(message => message.CreatedAt).ThenBy(message => message.Id).Take(limit + 1), ct);
+
     public static MessageView ToView(Message message, MessageFeedback? feedback = null,
-        IReadOnlyList<AttachmentView>? attachments = null) => new(message.Id, message.Role.ToString().ToLowerInvariant(),
+        IReadOnlyList<AttachmentView>? attachments = null, bool isBookmarked = false) => new(message.Id, message.Role.ToString().ToLowerInvariant(),
         message.Content, message.Status.ToString().ToLowerInvariant(), message.Model, message.ErrorCode,
         message.Suggestions, message.CreatedAt, message.TriggerMessageId, feedback?.Rating, feedback?.Reason, attachments,
-        message.AppliedRules is null ? null : JsonSerializer.Deserialize<ChatRules>(message.AppliedRules));
+        message.AppliedRules is null ? null : JsonSerializer.Deserialize<ChatRules>(message.AppliedRules), isBookmarked);
 }

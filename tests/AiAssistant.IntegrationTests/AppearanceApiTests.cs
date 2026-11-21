@@ -54,6 +54,14 @@ public sealed class AppearanceApiTests(ApiFixture fixture) : IClassFixture<ApiFi
             schemaVersion = 1, preset = "studio", colorMode = "system", settings = new { messageOutline = "rectangle" },
         });
         Assert.Equal("rectangle", (await BodyAsync(studio)).GetProperty("settings").GetProperty("messageOutline").GetString());
+        foreach (var outline in new[] { "none", "side" })
+        {
+            using var updated = await owner.PutAsJsonAsync(endpoint, new
+            {
+                schemaVersion = 1, preset = "studio", colorMode = "system", settings = new { messageOutline = outline },
+            });
+            Assert.Equal(outline, (await BodyAsync(updated)).GetProperty("settings").GetProperty("messageOutline").GetString());
+        }
         using var delete = await owner.DeleteAsync(endpoint);
         Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
         using var reset = await owner.GetAsync(endpoint);

@@ -52,8 +52,25 @@ public sealed class ChatsController(ISender sender) : ApplicationController
         NoContentFrom(await sender.Send(new DeleteChat(CurrentUserId, chatId), cancellationToken));
 
     [HttpGet("{chatId:guid}/messages")]
-    public async Task<IActionResult> Messages(Guid chatId, CancellationToken cancellationToken, Guid? before = null, int limit = 30) =>
-        From(await sender.Send(new ListMessages(CurrentUserId, chatId, before, limit), cancellationToken));
+    public async Task<IActionResult> Messages(Guid chatId, CancellationToken cancellationToken, Guid? before = null, int limit = 30,
+        Guid? around = null, Guid? after = null) =>
+        From(await sender.Send(new ListMessages(CurrentUserId, chatId, before, limit, around, after), cancellationToken));
+
+    [HttpGet("resume")]
+    public async Task<IActionResult> Resume(CancellationToken ct, Guid? workspaceId = null, Guid? chatId = null, Guid? messageId = null) =>
+        From(await sender.Send(new GetResumeChat(CurrentUserId, workspaceId, chatId, messageId), ct));
+
+    [HttpGet("{chatId:guid}/navigation")]
+    public async Task<IActionResult> Navigation(Guid chatId, string kind, CancellationToken ct, string? search = null, Guid? after = null) =>
+        From(await sender.Send(new ListMessageLinks(CurrentUserId, chatId, kind, search, after), ct));
+
+    [HttpPut("{chatId:guid}/bookmarks/{messageId:guid}")]
+    public async Task<IActionResult> Bookmark(Guid chatId, Guid messageId, CancellationToken ct) =>
+        NoContentFrom(await sender.Send(new SetMessageBookmark(CurrentUserId, chatId, messageId, true), ct));
+
+    [HttpDelete("{chatId:guid}/bookmarks/{messageId:guid}")]
+    public async Task<IActionResult> RemoveBookmark(Guid chatId, Guid messageId, CancellationToken ct) =>
+        NoContentFrom(await sender.Send(new SetMessageBookmark(CurrentUserId, chatId, messageId, false), ct));
 
     [HttpPost("{chatId:guid}/messages")]
     [EnableRateLimiting("chat")]

@@ -290,6 +290,23 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                     b.ToTable("messages", (string)null);
                 });
 
+            modelBuilder.Entity("AiAssistant.Domain.MessageBookmark", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.HasKey("UserId", "MessageId");
+
+                    b.HasIndex("MessageId");
+
+                    b.ToTable("message_bookmarks", (string)null);
+                });
+
             modelBuilder.Entity("AiAssistant.Domain.MessageFeedback", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1059,6 +1076,21 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("PersonaId")
                         .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("AiAssistant.Domain.MessageBookmark", b =>
+                {
+                    b.HasOne("AiAssistant.Domain.Message", null)
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AiAssistant.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AiAssistant.Domain.MessageFeedback", b =>

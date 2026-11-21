@@ -70,8 +70,12 @@ export type Message = {
   feedbackReason: string | null
   attachments?: Attachment[] | null
   rules?: ChatRules | null
+  isBookmarked?: boolean
 }
-export type MessagePage = { items: Message[]; nextBefore: string | null }
+export type MessagePage = { items: Message[]; nextBefore: string | null; nextAfter: string | null }
+export type MessageLink = { id: string; role: Message['role']; text: string; matchStart: number; matchLength: number }
+export type MessageLinks = { items: MessageLink[]; next: string | null }
+export type ResumeChat = { chat: Chat; anchorId: string | null; text: string }
 export type Page<T> = { items: T[]; hasMore: boolean }
 export type Memory = { id: string; content: string; source: 'manual' | 'auto'; isEnabled: boolean; createdAt: string }
 export type Adaptation = { feedbackId: string; currentLength: string; proposedLength: string }

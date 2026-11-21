@@ -17,7 +17,7 @@ export const appearanceOptions = {
   fontScale: [90, 100, 110, 120],
   codeFont: ['system', 'jetbrains', 'fira'],
   messageStyle: ['bubbles', 'cards', 'flat'],
-  messageOutline: ['rectangle', 'wave', 'rounded', 'oval'],
+  messageOutline: ['rectangle', 'wave', 'rounded', 'oval', 'none', 'side'],
   chatWidth: ['narrow', 'medium', 'wide'],
   userSide: ['left', 'right'],
   assistantAvatar: ['persona', 'brand', 'custom'],

@@ -17,7 +17,7 @@ public static partial class AppearanceSettingsValidator
         ["font"] = ["system", "inter", "manrope", "plex"],
         ["codeFont"] = ["system", "jetbrains", "fira"],
         ["messageStyle"] = ["cards", "bubbles", "flat"],
-        ["messageOutline"] = ["rectangle", "wave", "rounded", "oval"],
+        ["messageOutline"] = ["rectangle", "wave", "rounded", "oval", "none", "side"],
         ["chatWidth"] = ["medium", "narrow", "wide"],
         ["userSide"] = ["left", "right"],
         ["assistantAvatar"] = ["brand", "persona", "custom"],

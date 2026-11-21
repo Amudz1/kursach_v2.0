@@ -1,8 +1,9 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { HubConnectionBuilder, HubConnectionState, type HubConnection } from '@microsoft/signalr'
-import { api, apiResponse, explain } from './api'
+import { ApiError, api, apiResponse, explain } from './api'
 import { useSession } from './session'
+import { appearance } from './appearance'
 import type { Adaptation, Attachment, Chat, Message, MessagePage, Page, Plan, Workspace } from './types'
 
 const terminal = (message: Message) => message.status !== 'pending' && message.status !== 'streaming'
@@ -31,6 +32,11 @@ export function useChat() {
   const model = ref('')
   const search = ref('')
   const nextBefore = ref<string | null>(null)
+  const nextAfter = ref<string | null>(null)
+  const loadingPage = ref(false)
+  const highlightedId = ref('')
+  const offscreenFlow = ref<Message>()
+  const bookmarkPending = ref(new Set<string>())
   const chatsHaveMore = ref(false)
   const page = ref(1)
   const draft = ref('')
@@ -41,9 +47,9 @@ export function useChat() {
   const linked = ref(false)
   const adaptation = ref<Adaptation>()
   const hub = shallowRef<HubConnection>()
-  const flow = computed(() => messages.value.findLast((message) => !terminal(message)))
-  const lastUser = computed(() => messages.value.findLast((message) => message.role === 'user'))
-  const lastAnswer = computed(() => messages.value.findLast((message) => message.role === 'assistant'))
+  const flow = computed(() => offscreenFlow.value ?? messages.value.findLast((message) => !terminal(message)))
+  const lastUser = computed(() => nextAfter.value ? undefined : messages.value.findLast((message) => message.role === 'user'))
+  const lastAnswer = computed(() => nextAfter.value ? undefined : messages.value.findLast((message) => message.role === 'assistant'))
   const transcript = ref<HTMLElement>()
   let requestSignal: AbortController | undefined
   let hubStarting: Promise<void> | undefined
@@ -52,6 +58,7 @@ export function useChat() {
   let disposed = false
   let gap = false
   let projectRequest = 0
+  let highlightTimer: ReturnType<typeof setTimeout> | undefined
 
   async function loadChats(reset = true) {
     const wanted = reset ? 1 : page.value + 1
@@ -123,25 +130,34 @@ export function useChat() {
   async function scrollBottom(force = false) {
     const element = transcript.value
     const nearBottom = !element || element.scrollHeight - element.scrollTop - element.clientHeight < 210
-    if (!nearBottom && !force) return
+    if (nextAfter.value || (!nearBottom && !force)) return
     await nextTick()
-    if (element) element.scrollTop = element.scrollHeight
+    if (element && !nextAfter.value) element.scrollTop = element.scrollHeight
   }
 
-  async function loadMessages(force = false, earlier = false) {
+  async function loadMessages(force = false, direction?: 'before' | 'after') {
     const id = selectedId.value
     if (!id) return
-    const before = earlier ? nextBefore.value : null
-    if (earlier && !before) return
+    const cursor = direction === 'before' ? nextBefore.value : nextAfter.value
+    if (direction && !cursor) return
+    if (!direction && !force && nextAfter.value) return
     const previous = requestSignal
-    if (force || earlier) previous?.abort()
-    if (!force && !earlier && previous) return
+    if (force || direction) previous?.abort()
+    if (!force && !direction && previous) return
     const controller = new AbortController()
     requestSignal = controller
+    loadingPage.value = !!direction
     try {
-      const result = await api<MessagePage>(`/chats/${id}/messages${before ? `?before=${before}` : ''}`, { signal: controller.signal })
+      const result = await api<MessagePage>(`/chats/${id}/messages${direction ? `?${direction}=${cursor}` : ''}`, { signal: controller.signal })
       if (id !== selectedId.value || controller.signal.aborted) return
-      if (earlier) messages.value = [...result.items, ...messages.value]
+      if (direction === 'before') {
+        messages.value = [...result.items.filter(item => !messages.value.some(old => old.id === item.id)), ...messages.value]
+        nextBefore.value = result.nextBefore
+      } else if (direction === 'after') {
+        result.items.forEach(updateMessage)
+        nextAfter.value = result.nextAfter
+        if (!nextAfter.value) offscreenFlow.value = undefined
+      }
       else {
         const local = new Map(messages.value.map((message) => [message.id, message]))
         const firstReturned = result.items[0]
@@ -153,15 +169,70 @@ export function useChat() {
           return item
         })
         messages.value = [...earlier, ...combined]
+        if (force || !nextBefore.value) nextBefore.value = result.nextBefore
+        nextAfter.value = null
+        offscreenFlow.value = undefined
         if (!result.items.some((item) => !terminal(item))) gap = false
         await scrollBottom(force)
       }
-      if (earlier || force || !nextBefore.value) nextBefore.value = result.nextBefore
     } catch (reason) {
       if (!controller.signal.aborted) error.value = explain(reason)
     } finally {
-      if (requestSignal === controller) requestSignal = undefined
+      if (requestSignal === controller) { requestSignal = undefined; loadingPage.value = false }
     }
+  }
+
+  async function jumpToMessage(messageId: string, offset = 0) {
+    const chatId = selectedId.value
+    if (!chatId || !/^[\da-f-]{36}$/i.test(messageId)) return false
+    if (!messages.value.some(item => item.id === messageId)) {
+      requestSignal?.abort()
+      const controller = new AbortController()
+      requestSignal = controller
+      loadingPage.value = true
+      try {
+        const result = await api<MessagePage>(`/chats/${chatId}/messages?around=${messageId}`, { signal: controller.signal })
+        if (controller.signal.aborted || chatId !== selectedId.value) return false
+        const active = flow.value
+        messages.value = result.items
+        nextBefore.value = result.nextBefore
+        nextAfter.value = result.nextAfter
+        offscreenFlow.value = result.nextAfter && active && !result.items.some(item => item.id === active.id) ? active : undefined
+      } catch (reason) {
+        if (controller.signal.aborted) return false
+        if (reason instanceof ApiError && reason.code === 'invalid_cursor') return false
+        throw reason
+      } finally {
+        if (requestSignal === controller) { requestSignal = undefined; loadingPage.value = false }
+      }
+    }
+    await nextTick()
+    if (chatId !== selectedId.value) return false
+    const container = transcript.value
+    const target = document.getElementById(`message-${messageId}`)
+    if (!container || !target) return false
+    const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top
+    const animate = !offset && appearance.value.motion === 'full' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    target.focus({ preventScroll: true })
+    container.scrollTo({ top: container.scrollTop + top + Math.min(offset, Math.max(0, target.offsetHeight - 8)) - 8,
+      behavior: animate ? 'smooth' : 'instant' })
+    clearTimeout(highlightTimer)
+    highlightedId.value = messageId
+    highlightTimer = setTimeout(() => { highlightedId.value = '' }, 1800)
+    return true
+  }
+
+  async function toggleBookmark(message: Message) {
+    const id = selectedId.value
+    if (!id || bookmarkPending.value.has(message.id)) return
+    bookmarkPending.value.add(message.id)
+    const bookmarked = !message.isBookmarked
+    try {
+      await api(`/chats/${id}/bookmarks/${message.id}`, { method: bookmarked ? 'PUT' : 'DELETE' })
+      const current = messages.value.find(item => item.id === message.id)
+      if (current && id === selectedId.value) current.isBookmarked = bookmarked
+    } catch (reason) { if (id === selectedId.value) error.value = explain(reason) }
+    finally { bookmarkPending.value.delete(message.id) }
   }
 
   async function ensureHub() {
@@ -172,12 +243,17 @@ export function useChat() {
       const current = (id: string) => id === selectedId.value
       connection.on('MessageStarted', (id: string, chat: string) => {
         if (current(chat) && !messages.value.some((item) => item.id === id)) {
-          updateMessage(newPlaceholder(id)); void scrollBottom(true)
+          if (nextAfter.value) offscreenFlow.value = newPlaceholder(id)
+          else { updateMessage(newPlaceholder(id)); void scrollBottom() }
         }
       })
       connection.on('TokenReceived', (id: string, text: string, offset: number, chat: string) => {
         if (!current(chat)) return
         let item = messages.value.find((message) => message.id === id)
+        if (!item && nextAfter.value) {
+          if (offscreenFlow.value?.id !== id) offscreenFlow.value = newPlaceholder(id)
+          return
+        }
         if (!item) { updateMessage(newPlaceholder(id)); item = messages.value.at(-1) }
         if (!item || terminal(item)) return
         if (offset === item.content.length) { item.status = 'streaming'; item.content += text; void scrollBottom() }
@@ -185,7 +261,9 @@ export function useChat() {
       })
       const finish = (message: Message, chat: string) => {
         if (!current(chat)) return
-        updateMessage(message); gap = false
+        if (offscreenFlow.value?.id === message.id) offscreenFlow.value = undefined
+        if (!nextAfter.value || messages.value.some(item => item.id === message.id)) updateMessage(message)
+        gap = false
         void loadMessages()
         void session.reload().catch(() => undefined)
       }
@@ -286,7 +364,10 @@ export function useChat() {
     if (!pendingRequest) pendingRequest = crypto.randomUUID()
     try {
       const id = selectedId.value || await create()
-      if (id === selectedId.value) await ensureHub()
+      if (id === selectedId.value) {
+        if (nextAfter.value) await loadMessages(true)
+        await ensureHub()
+      }
       const data = new FormData()
       data.set('content', draft.value)
       data.set('requestId', pendingRequest)
@@ -361,9 +442,20 @@ export function useChat() {
   watch(selectedId, async (id) => {
     linked.value = false; gap = false; nextBefore.value = null; messages.value = []; error.value = ''
     requestSignal?.abort()
+    requestSignal = undefined
+    nextAfter.value = null; loadingPage.value = false; loading.value = false; highlightedId.value = ''; offscreenFlow.value = undefined
     if (!id) return
     loading.value = true
-    await Promise.all([loadMessages(true), loadSelected(id), ensureHub()])
+    const anchor = typeof route.query.at === 'string' ? route.query.at : ''
+    const offset = Math.max(0, Number(route.query.offset) || 0)
+    async function initialPage() {
+      if (anchor) {
+        try { if (await jumpToMessage(anchor, offset)) return }
+        catch (reason) { if (id === selectedId.value) error.value = explain(reason) }
+      }
+      if (id === selectedId.value) await loadMessages(true)
+    }
+    await Promise.all([initialPage(), loadSelected(id), ensureHub()])
     if (id === selectedId.value) loading.value = false
   }, { immediate: true })
   watch([workspaceId, selectedId], () => { void loadProjectChats() }, { immediate: true })
@@ -378,13 +470,13 @@ export function useChat() {
     } catch (reason) { error.value = explain(reason) }
   })
   onUnmounted(() => {
-    disposed = true; requestSignal?.abort(); clearInterval(timer)
+    disposed = true; requestSignal?.abort(); clearInterval(timer); clearTimeout(highlightTimer)
     void hub.value?.stop()
   })
 
   return { chats, messages, selectedId, selected, model, currentPlan, search, workspaces, workspaceId, workspaceQuery, currentWorkspace,
     projectChats, projectHasMore, projectLoading, loadProjectChats, loadWorkspaces, openProject, projectRemoved,
-    nextBefore, chatsHaveMore, draft, files, busy, loading, error, linked, flow, lastUser, lastAnswer, adaptation, transcript,
-    loadChats, loadMessages, newChat, patch, move, remove, changeDraft, chooseFiles, removeFile, send, stop,
+    nextBefore, nextAfter, loadingPage, highlightedId, bookmarkPending, chatsHaveMore, draft, files, busy, loading, error, linked, flow, lastUser, lastAnswer, adaptation, transcript,
+    loadChats, loadMessages, jumpToMessage, toggleBookmark, newChat, patch, move, remove, changeDraft, chooseFiles, removeFile, send, stop,
     revise, rate, decide, download }
 }

@@ -44,7 +44,7 @@ const fields: { title: string; items: SelectField[] }[] = [
   ] },
   { title: 'Диалоги', items: [
     { key: 'messageStyle', label: 'Вид сообщений', names: ['Пузыри', 'Карточки', 'Лента'] },
-    { key: 'messageOutline', label: 'Обводка сообщений', names: ['Прямоугольная', 'Волнистая', 'Скруглённая', 'Овальная'] },
+    { key: 'messageOutline', label: 'Обводка сообщений', names: ['Прямоугольная', 'Волнистая', 'Скруглённая', 'Овальная', 'Без обводки', 'Боковая линия'] },
     { key: 'chatWidth', label: 'Ширина ленты', names: ['Узкая', 'Средняя', 'Широкая'] },
     { key: 'userSide', label: 'Свои сообщения', names: ['Слева', 'Справа'] },
     { key: 'assistantAvatar', label: 'Аватар помощника', names: ['Иконка персоны', 'Логотип Budz', 'Свой цвет'] },
@@ -248,7 +248,7 @@ async function importTheme(event: Event) {
 .preview-message.user { background: var(--message-user-bg); }
 .preview-message.right { margin-inline-start: auto; }
 .preview-message.bubbles { width: fit-content; max-width: 100%; }
-.preview-message.bubbles.assistant { background: var(--message-surface); }
+.preview-message.bubbles.assistant { background: var(--assistant-bubble, var(--message-surface)); }
 @media (max-width: 850px) {
   .appearance-grid { grid-template-columns: minmax(0, 1fr); }
   .preview-surface { position: static; grid-row: 1; }

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { ArrowDown, Check, ChevronDown, Copy, Ellipsis, FileImage, FileText, Folder, Lightbulb, ListChecks, PanelLeft, Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Search, Send, Square, ThumbsDown, ThumbsUp, X } from 'lucide-vue-next'
+import { ArrowDown, BookOpen, Bookmark, Check, ChevronDown, Copy, Ellipsis, FileImage, FileText, Folder, Lightbulb, ListChecks, PanelLeft, Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Search, Send, Square, ThumbsDown, ThumbsUp, X } from 'lucide-vue-next'
 import { categoryColors, entityColor, entityIcon } from '../appearance/entities'
 import { appearance } from '../appearance'
-import { api } from '../api'
+import { api, explain } from '../api'
 import { useSession } from '../session'
 import ChatMarkdown from '../components/ChatMarkdown.vue'
+import ChatNavigationPanel from '../components/ChatNavigationPanel.vue'
 import ChatRulesPanel from '../components/ChatRulesPanel.vue'
 import ProjectEditor from '../components/ProjectEditor.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
@@ -14,14 +15,15 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiChip from '../components/ui/UiChip.vue'
 import UiIconButton from '../components/ui/UiIconButton.vue'
 import { useChat } from '../use-chat'
+import { useChatResume } from '../use-chat-resume'
 import type { Chat, Message, Persona } from '../types'
 
 const {
-  chats, messages, selected, selectedId, model, currentPlan, search, nextBefore,
+  chats, messages, selected, selectedId, model, currentPlan, search, nextBefore, nextAfter, loadingPage, highlightedId, bookmarkPending,
   chatsHaveMore, draft, files, busy, loading, error, linked, flow, lastUser, lastAnswer, adaptation, transcript,
   workspaces, workspaceId, workspaceQuery, currentWorkspace,
   projectChats, projectHasMore, projectLoading, loadProjectChats, loadWorkspaces, openProject, projectRemoved,
-  loadChats, loadMessages, newChat, patch, move, remove, changeDraft, chooseFiles, removeFile, send, stop, revise, rate,
+  loadChats, loadMessages, jumpToMessage, toggleBookmark, newChat, patch, move, remove, changeDraft, chooseFiles, removeFile, send, stop, revise, rate,
   decide, download,
 } = useChat()
 const compactLayout = window.matchMedia('(max-width: 900px)')
@@ -43,6 +45,7 @@ const copied = ref('')
 const feedbackTarget = ref('')
 const composer = ref<HTMLTextAreaElement>()
 const chatMenu = ref<HTMLDetailsElement>()
+const navigationPanel = ref<InstanceType<typeof ChatNavigationPanel>>()
 const rulesPanel = ref<InstanceType<typeof ChatRulesPanel>>()
 const projectEditor = ref<InstanceType<typeof ProjectEditor>>()
 const viewportHeight = ref<string>()
@@ -53,6 +56,7 @@ const projectMark = computed(() => {
   if (project) return { icon: entityIcon(project.icon, 'folder'), color: `var(--${entityColor(project.color, project.id)})` }
 })
 const session = useSession()
+const { resume, resumeRoute, rememberPosition } = useChatResume(computed(() => session.account?.id ?? ''), selectedId, workspaceId, selected, transcript)
 const personas = ref<Persona[]>([])
 const personasById = computed(() => new Map(personas.value.map((persona) => [persona.id, persona])))
 const activePersona = computed(() => selected.value?.personaId ? personasById.value.get(selected.value.personaId) : undefined)
@@ -97,10 +101,27 @@ const formTitle = computed(() => ({ rename: 'Переименовать диал
 function updateLatestButton() {
   const element = transcript.value
   showLatest.value = !!element && element.scrollHeight - element.clientHeight - element.scrollTop > 220
+  rememberPosition()
 }
-function jumpToLatest() {
+async function jumpToLatest() {
+  if (nextAfter.value) { await loadMessages(true); return }
   const element = transcript.value
   if (element) element.scrollTop = element.scrollHeight
+}
+
+function openChatSearch() {
+  if (chatMenu.value) {
+    chatMenu.value.open = false
+    chatMenu.value.querySelector('summary')?.focus()
+  }
+  void navigationPanel.value?.show('search')
+}
+
+async function goToMessage(id: string) {
+  error.value = ''
+  try {
+    if (!await jumpToMessage(id)) error.value = 'Сообщение недоступно. Откройте оглавление или повторите поиск.'
+  } catch (reason) { error.value = explain(reason) }
 }
 function dragEnter(event: DragEvent) {
   if (temporary.value || !event.dataTransfer?.types.includes('Files')) return
@@ -318,10 +339,14 @@ onUnmounted(() => {
         <div class="conversation-heading">
           <span>{{ selected?.title ?? currentWorkspace?.name ?? 'Диалоги' }}</span>
         </div>
+        <div class="conversation-tools">
+        <button v-if="selectedId" type="button" class="chat-control" aria-label="Оглавление" title="Оглавление"
+          aria-haspopup="dialog" @click="navigationPanel?.show('outline')"><BookOpen aria-hidden="true" /></button>
         <details ref="chatMenu" class="chat-menu">
           <summary aria-label="Настройки диалога"><Ellipsis aria-hidden="true" /></summary>
           <div class="chat-menu-panel">
             <button type="button" class="text-button" aria-haspopup="dialog" @click="showRules">Правила</button>
+            <button v-if="selectedId" type="button" class="text-button" aria-haspopup="dialog" @click="openChatSearch">Поиск по беседе</button>
             <label>Модель <select :value="model" aria-label="Модель" @change="setModel">
               <option value="">Автоматически</option><option v-for="allowed in currentPlan?.allowedModels" :key="allowed" :value="allowed">{{ allowed }}</option>
             </select></label>
@@ -340,6 +365,7 @@ onUnmounted(() => {
             </template>
           </div>
         </details>
+        </div>
       </header>
 
       <div class="chat-content" :class="{ 'is-start': !selectedId }">
@@ -359,17 +385,26 @@ onUnmounted(() => {
             <p class="status-line"><span :class="{ online: linked }"></span>{{ linked ? 'Подключено' : 'Подключаемся к чату' }}</p>
           </header>
           <p v-if="loading && !messages.length" class="muted" role="status">Загружаем сообщения…</p>
-          <button v-if="nextBefore" class="plain-button" @click="loadMessages(false, true)">Загрузить ранние сообщения</button>
+          <button v-if="nextBefore" class="plain-button" :disabled="loadingPage" @click="loadMessages(false, 'before')">Загрузить ранние сообщения</button>
           <div v-if="selectedId && !loading && !messages.length" class="start-choices" aria-label="Примеры запросов">
             <button v-for="idea in defaultIdeas" :key="idea" type="button" class="secondary" @click="setComposer(idea)">{{ idea }}</button>
           </div>
-          <article v-for="item in messages" :key="item.id" class="message message-frame" :class="item.role">
+          <article v-for="item in messages" :id="`message-${item.id}`" :key="item.id" class="message message-frame"
+            :class="[item.role, { 'message-target': highlightedId === item.id }]" tabindex="-1"
+            :data-reading-message="item.status === 'pending' || item.status === 'streaming' ? undefined : item.id">
             <div class="message-meta">
               <UiAvatar v-if="item.role === 'user'" :name="session.account?.username ?? 'Вы'" size="sm" decorative />
               <UiAvatar v-else :name="activePersona?.name ?? 'Budz'" :brand="appearance.assistantAvatar !== 'persona'"
                 :icon="assistantIcon" :color="personaColor(activePersona?.id)" size="sm" decorative />
               <strong>{{ item.role === 'user' ? 'Вы' : 'Budz' }}</strong>
               <time :datetime="item.createdAt">{{ time(item.createdAt) }}</time>
+              <UiIconButton v-if="selected && !temporary && item.role === 'assistant' && item.content &&
+                item.status !== 'pending' && item.status !== 'streaming'" class="message-bookmark" size="sm" :icon="Bookmark"
+                :disabled="bookmarkPending.has(item.id)" :pressed="!!item.isBookmarked"
+                :label="item.isBookmarked ? 'Убрать закладку' : 'Добавить закладку'" @click="toggleBookmark(item)">
+                <span v-if="item.isBookmarked" class="bookmark-dot" aria-hidden="true"></span>
+                <Bookmark v-else class="bookmark-icon" aria-hidden="true" />
+              </UiIconButton>
             </div>
             <div class="message-body">
               <ChatMarkdown v-if="item.content" :content="item.content" :class="{ streaming: item.status === 'streaming' }" />
@@ -401,10 +436,12 @@ onUnmounted(() => {
                 :icon="Lightbulb" arrow @click="setComposer(idea)">{{ idea }}</UiChip>
             </div>
           </article>
+          <button v-if="nextAfter" class="plain-button newer-messages" :disabled="loadingPage" @click="loadMessages(false, 'after')">Загрузить более новые сообщения</button>
         </div>
 
         <div class="composer-wrap">
-          <UiButton v-if="selectedId && showLatest" class="jump-latest" size="sm" :icon="ArrowDown" @click="jumpToLatest">К последнему сообщению</UiButton>
+          <UiButton v-if="selectedId && (showLatest || nextAfter)" class="jump-latest" size="sm" :icon="ArrowDown"
+            :disabled="loadingPage" @click="jumpToLatest">К последнему сообщению</UiButton>
           <p v-if="error" class="notice danger" role="alert">{{ error }}</p>
           <div v-if="adaptation && !temporary" class="notice adaptation" role="status">
             <span>Последние оценки предлагают сделать ответы короче.</span>
@@ -432,6 +469,18 @@ onUnmounted(() => {
           </form>
         </div>
         <div v-if="!selectedId" class="chat-start-extra">
+          <RouterLink v-if="resume && resumeRoute" :to="resumeRoute" class="resume-chat">
+            <span class="bookmark-dot" aria-hidden="true"></span>
+            <span>
+              <small>Продолжить</small>
+              <strong>{{ resume.chat.title }}</strong>
+              <span v-if="resume.chat.workspaceId && projectNames.has(resume.chat.workspaceId)" class="resume-project">
+                {{ projectNames.get(resume.chat.workspaceId) }}
+              </span>
+              <span v-if="resume.text" class="resume-snippet">{{ resume.text }}</span>
+            </span>
+            <BookOpen aria-hidden="true" />
+          </RouterLink>
           <section v-if="currentWorkspace" class="project-overview stack" aria-labelledby="project-conversations">
             <header class="project-overview-heading">
               <h2 id="project-conversations">Диалоги проекта</h2>
@@ -449,7 +498,7 @@ onUnmounted(() => {
             <p v-if="projectLoading" class="muted" role="status">Загружаем диалоги проекта…</p>
             <button v-else-if="projectHasMore" type="button" class="plain-button self-start" @click="loadProjectChats(false)">Ещё диалоги проекта</button>
           </section>
-          <div v-else class="start-choices" aria-label="Примеры запросов">
+          <div v-else-if="!resume" class="start-choices" aria-label="Примеры запросов">
             <button v-for="idea in defaultIdeas" :key="idea" type="button" class="secondary" @click="setComposer(idea)">{{ idea }}</button>
           </div>
         </div>
@@ -469,6 +518,7 @@ onUnmounted(() => {
       </form>
     </dialog>
     <ChatRulesPanel ref="rulesPanel" :chat-id="selectedId" :workspace-id="workspaceId" :last="lastAnswer?.rules" />
+    <ChatNavigationPanel ref="navigationPanel" :chat-id="selectedId" :temporary="temporary" @jump="goToMessage" />
     <ProjectEditor ref="projectEditor" @saved="projectSaved" @removed="projectRemoved" />
   </section>
 </template>
@@ -538,6 +588,7 @@ onUnmounted(() => {
   min-width: 0; min-height: 0; --chat-content-width: 920px; --chat-gutter: var(--space-4); }
 .conversation-header { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: var(--space-2);
   min-height: 56px; padding-inline: clamp(.5rem, 2.2vw, 2rem); border-bottom: 1px solid var(--border); }
+.conversation-tools { display: flex; align-items: center; gap: var(--space-1); }
 .conversation-heading { min-width: 0; color: var(--text); font-size: var(--font-size-sm); font-weight: 650; }
 .conversation-heading span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-control, .chat-menu > summary { display: grid; place-items: center; width: 42px; height: 42px; padding: 0; color: var(--text-muted);
@@ -560,6 +611,14 @@ onUnmounted(() => {
 }
 .chat-start { padding-block-start: clamp(2.5rem, 10vh, 7rem); }
 .chat-start-extra { padding-block-end: var(--space-5); }
+.resume-chat { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); margin-block-start: var(--space-4);
+  padding: var(--space-3) var(--space-4); color: var(--text); text-decoration: none; background: var(--surface-3);
+  border: 1px solid var(--border); border-inline-start: 3px solid var(--studio-bookmark); border-radius: var(--radius-md); }
+.resume-chat:hover { background: var(--surface-2); border-color: var(--studio-bookmark); }
+.resume-chat > span:nth-child(2) { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
+.resume-chat small { color: var(--accent); font-weight: 700; }
+.resume-project, .resume-snippet { color: var(--text-muted); font-size: var(--font-size-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.resume-chat svg { width: 18px; height: 18px; color: var(--text-muted); }
 .chat-start h1 { margin: 0 0 clamp(1.6rem, 4vw, 2.75rem); font: 400 clamp(2.65rem, 6.4vw, 5.5rem)/1 var(--font-serif); letter-spacing: -.055em; }
 .chat-start h1 span { color: var(--accent); }
 .start-choices { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-top: var(--space-4); }
@@ -597,8 +656,13 @@ onUnmounted(() => {
 .message { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: var(--space-2);
   animation: message-in var(--motion-base) var(--ease-out) both; }
 .message + .message { margin-top: var(--space-5); }
+.message-target { outline: 2px solid var(--focus); outline-offset: -2px; }
+.newer-messages { margin-block-start: var(--space-3); }
 .message.user { width: fit-content; max-width: min(100%, 600px); background: var(--message-user-bg); }
 .message-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--text-muted); font-size: var(--font-size-sm); }
+.message-bookmark { margin-inline-start: auto; }
+.bookmark-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--studio-bookmark); }
+.bookmark-icon { width: 16px; height: 16px; }
 .message-meta time { font-size: var(--font-size-xs); }
 .message.user .message-meta { font-size: var(--font-size-xs); }
 .message.user .message-meta .ui-avatar { display: none; }
@@ -616,7 +680,7 @@ onUnmounted(() => {
 .message.assistant :deep(.code-frame) { font-size: var(--font-size-sm); }
 @keyframes message-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 :global(:root[data-message-style="bubbles"] .workspace .message) { width: fit-content; max-width: 94%; }
-:global(:root[data-message-style="bubbles"] .workspace .message.assistant) { background: var(--message-surface); }
+:global(:root[data-message-style="bubbles"] .workspace .message.assistant) { background: var(--assistant-bubble, var(--message-surface)); }
 :global(:root[data-user-side="right"] .workspace .message.user) { margin-inline-start: auto; }
 .message-actions, .suggestions, .feedback-reasons { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1); }
 @media (hover: hover) {

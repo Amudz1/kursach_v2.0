@@ -28,9 +28,11 @@ public sealed class AppearanceMigrationTests
         await migrator.MigrateAsync();
         Assert.Equal("sparkles", await Scalar("SELECT icon FROM personas WHERE id = 'f1000000-0000-4000-8000-000000000001'"));
         Assert.Equal(true, await Scalar("SELECT to_regclass('appearance_settings') IS NOT NULL"));
+        Assert.Equal(true, await Scalar("SELECT to_regclass('message_bookmarks') IS NOT NULL"));
         await migrator.MigrateAsync(previous);
         Assert.Equal(name, await Scalar(personaName));
         Assert.Equal(false, await Scalar("SELECT to_regclass('appearance_settings') IS NOT NULL"));
+        Assert.Equal(false, await Scalar("SELECT to_regclass('message_bookmarks') IS NOT NULL"));
 
         async Task<object?> Scalar(string sql)
         {
