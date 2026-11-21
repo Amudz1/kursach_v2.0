@@ -40,6 +40,14 @@ describe('normalizeAppearance', () => {
   it('accepts auto as the second accent', () => {
     expect(normalizeAppearance({ accent2: 'auto' }).accent2).toBe('auto')
   })
+
+  it('derives an absent or invalid outline from the preset and keeps explicit choices', () => {
+    expect(normalizeAppearance({ preset: 'studio' }).messageOutline).toBe('wave')
+    expect(normalizeAppearance({ preset: 'studio', messageOutline: 'unknown' }).messageOutline).toBe('wave')
+    expect(normalizeAppearance({ preset: 'classic' }).messageOutline).toBe('rectangle')
+    const selected = normalizeAppearance({ preset: 'studio', messageOutline: 'rectangle' })
+    expect(toRootAttributes(selected).dataset['message-outline']).toBe('rectangle')
+  })
 })
 
 describe('toRootAttributes', () => {

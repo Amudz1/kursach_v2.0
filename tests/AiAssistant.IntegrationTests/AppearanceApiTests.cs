@@ -22,28 +22,38 @@ public sealed class AppearanceApiTests(ApiFixture fixture) : IClassFixture<ApiFi
 
         using var invalid = await owner.PutAsJsonAsync(endpoint, new
         {
-            schemaVersion = 1, preset = "midnight", colorMode = "invalid", settings = new { accent = "red" },
+            schemaVersion = 1, preset = "midnight", colorMode = "invalid", settings = new { accent = "red", messageOutline = "invalid" },
         });
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
         var fields = (await BodyAsync(invalid)).GetProperty("errors");
         Assert.True(fields.TryGetProperty("colorMode", out _));
         Assert.True(fields.TryGetProperty("settings.accent", out _));
+        Assert.True(fields.TryGetProperty("settings.messageOutline", out _));
 
         using var save = await owner.PutAsJsonAsync(endpoint, new
         {
-            schemaVersion = 1, preset = "midnight", colorMode = "dark", settings = new { glow = "bright", accent = "#66aaff" },
+            schemaVersion = 1, preset = "midnight", colorMode = "dark", settings = new { glow = "bright", accent = "#66aaff", messageOutline = "oval" },
         });
         save.EnsureSuccessStatusCode();
         using var stored = await owner.GetAsync(endpoint);
         var appearance = await BodyAsync(stored);
         Assert.Equal("midnight", appearance.GetProperty("preset").GetString());
         Assert.Equal("#66aaff", appearance.GetProperty("settings").GetProperty("accent").GetString());
+        Assert.Equal("oval", appearance.GetProperty("settings").GetProperty("messageOutline").GetString());
         Assert.False(appearance.GetProperty("settings").TryGetProperty("glow", out _));
         using var privateResult = await other.GetAsync(endpoint);
         Assert.Equal("studio", (await BodyAsync(privateResult)).GetProperty("preset").GetString());
 
         using var export = await owner.GetAsync("/api/v1/data/export?format=json&includeAccount=true");
-        Assert.Equal("midnight", (await BodyAsync(export)).GetProperty("appearance").GetProperty("preset").GetString());
+        var exported = (await BodyAsync(export)).GetProperty("appearance");
+        Assert.Equal("midnight", exported.GetProperty("preset").GetString());
+        Assert.Equal("oval", exported.GetProperty("settings").GetProperty("messageOutline").GetString());
+
+        using var studio = await owner.PutAsJsonAsync(endpoint, new
+        {
+            schemaVersion = 1, preset = "studio", colorMode = "system", settings = new { messageOutline = "rectangle" },
+        });
+        Assert.Equal("rectangle", (await BodyAsync(studio)).GetProperty("settings").GetProperty("messageOutline").GetString());
         using var delete = await owner.DeleteAsync(endpoint);
         Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
         using var reset = await owner.GetAsync(endpoint);

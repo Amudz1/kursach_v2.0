@@ -17,6 +17,7 @@ public static partial class AppearanceSettingsValidator
         ["font"] = ["system", "inter", "manrope", "plex"],
         ["codeFont"] = ["system", "jetbrains", "fira"],
         ["messageStyle"] = ["cards", "bubbles", "flat"],
+        ["messageOutline"] = ["rectangle", "wave", "rounded", "oval"],
         ["chatWidth"] = ["medium", "narrow", "wide"],
         ["userSide"] = ["left", "right"],
         ["assistantAvatar"] = ["brand", "persona", "custom"],
@@ -65,6 +66,7 @@ public static partial class AppearanceSettingsValidator
                     ("terminal", "codeFont") => "jetbrains",
                     (AppearanceSettings.RegistrationPreset, "font") => "plex",
                     (AppearanceSettings.RegistrationPreset, "messageStyle") => "flat",
+                    (AppearanceSettings.RegistrationPreset, "messageOutline") => "wave",
                     (AppearanceSettings.RegistrationPreset, "userSide") => "right",
                     _ => options[0],
                 };

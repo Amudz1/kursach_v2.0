@@ -17,6 +17,7 @@ export const appearanceOptions = {
   fontScale: [90, 100, 110, 120],
   codeFont: ['system', 'jetbrains', 'fira'],
   messageStyle: ['bubbles', 'cards', 'flat'],
+  messageOutline: ['rectangle', 'wave', 'rounded', 'oval'],
   chatWidth: ['narrow', 'medium', 'wide'],
   userSide: ['left', 'right'],
   assistantAvatar: ['persona', 'brand', 'custom'],
@@ -58,6 +59,7 @@ export const defaultAppearance: Readonly<AppearanceSettings> = Object.freeze({
   fontScale: 100,
   codeFont: 'system',
   messageStyle: 'cards',
+  messageOutline: 'rectangle',
   chatWidth: 'medium',
   userSide: 'left',
   assistantAvatar: 'brand',
@@ -69,7 +71,7 @@ export const defaultAppearance: Readonly<AppearanceSettings> = Object.freeze({
 })
 
 export const presets: Record<PresetId, { label: string; options?: Partial<AppearanceSettings> }> = {
-  studio: { label: 'Студия', options: { font: 'plex', messageStyle: 'flat', userSide: 'right' } },
+  studio: { label: 'Студия', options: { font: 'plex', messageStyle: 'flat', messageOutline: 'wave', userSide: 'right' } },
   classic: { label: 'Классическая' },
   ultramarine: { label: 'Ультрамарин' },
   graphite: { label: 'Графит', options: { mode: 'dark' } },
@@ -90,9 +92,9 @@ export function readHex(value: unknown): HexColor | null {
   return typeof value === 'string' && hexPattern.test(value) ? value.toLowerCase() as HexColor : null
 }
 
-function readOption<K extends OptionKey>(key: K, value: unknown): Options[K][number] {
+function readOption<K extends OptionKey>(key: K, value: unknown, fallback = defaultAppearance[key]): Options[K][number] {
   const allowed = appearanceOptions[key] as readonly unknown[]
-  return (allowed.includes(value) ? value : defaultAppearance[key]) as Options[K][number]
+  return (allowed.includes(value) ? value : fallback) as Options[K][number]
 }
 
 function readTint(value: unknown) {
@@ -105,6 +107,9 @@ export function normalizeAppearance(input: unknown): AppearanceSettings {
   const source = typeof input === 'object' && input !== null ? input as Record<string, unknown> : {}
   const settings = {} as Record<string, unknown>
   for (const key of Object.keys(appearanceOptions) as OptionKey[]) settings[key] = readOption(key, source[key])
+  const preset = readOption('preset', source.preset)
+  settings.messageOutline = readOption('messageOutline', source.messageOutline,
+    presets[preset].options?.messageOutline ?? defaultAppearance.messageOutline)
   settings.accent = readHex(source.accent)
   settings.accent2 = source.accent2 === 'auto' ? 'auto' : readHex(source.accent2)
   settings.backgroundTint = readTint(source.backgroundTint)
@@ -122,7 +127,7 @@ export interface RootAttributes {
 /** Every attribute and property the engine may set, so stale ones can be removed. */
 export const managedAttributes = [
   'theme', 'tint', 'preset', 'glow', 'radius', 'density', 'font', 'font-scale', 'code-font', 'message-style',
-  'chat-width', 'user-side', 'avatar', 'code-theme', 'message-actions', 'pattern', 'motion', 'accent-auto', 'background-tinted',
+  'message-outline', 'chat-width', 'user-side', 'avatar', 'code-theme', 'message-actions', 'pattern', 'motion', 'accent-auto', 'background-tinted',
 ] as const
 export const managedVars = ['theme-tint', 'accent-2-custom', 'avatar-custom', 'avatar-custom-text', 'background-tint'] as const
 
@@ -136,6 +141,7 @@ export function toRootAttributes(settings: AppearanceSettings): RootAttributes {
     'font-scale': String(settings.fontScale),
     'code-font': settings.codeFont,
     'message-style': settings.messageStyle,
+    'message-outline': settings.messageOutline,
     'chat-width': settings.chatWidth,
     'user-side': settings.userSide,
     avatar: settings.assistantAvatar,

@@ -44,6 +44,7 @@ const fields: { title: string; items: SelectField[] }[] = [
   ] },
   { title: 'Диалоги', items: [
     { key: 'messageStyle', label: 'Вид сообщений', names: ['Пузыри', 'Карточки', 'Лента'] },
+    { key: 'messageOutline', label: 'Обводка сообщений', names: ['Прямоугольная', 'Волнистая', 'Скруглённая', 'Овальная'] },
     { key: 'chatWidth', label: 'Ширина ленты', names: ['Узкая', 'Средняя', 'Широкая'] },
     { key: 'userSide', label: 'Свои сообщения', names: ['Слева', 'Справа'] },
     { key: 'assistantAvatar', label: 'Аватар помощника', names: ['Иконка персоны', 'Логотип Budz', 'Свой цвет'] },
@@ -184,7 +185,7 @@ async function importTheme(event: Event) {
           <legend>{{ group.title }}</legend>
           <div class="form-grid">
             <label v-for="field in group.items" :key="field.key">{{ field.label }}
-              <select :value="draft[field.key]" @change="selectValue(field.key, $event)">
+              <select :value="draft[field.key]" :aria-label="field.label" @change="selectValue(field.key, $event)">
                 <option v-for="(option, index) in appearanceOptions[field.key]" :key="option" :value="option">{{ field.names[index] }}</option>
               </select>
             </label>
@@ -203,8 +204,8 @@ async function importTheme(event: Event) {
       </form>
       <aside ref="previewSurface" class="preview-surface stack" aria-labelledby="preview-title">
         <div class="actions"><Palette aria-hidden="true" /><h2 id="preview-title">Предпросмотр</h2></div>
-        <div class="preview-message user" :class="[draft.messageStyle, draft.userSide]">Покажи короткий пример на C#.</div>
-        <div class="preview-message assistant" :class="draft.messageStyle">
+        <div class="preview-message message-frame user" :class="[draft.messageStyle, draft.userSide]">Покажи короткий пример на C#.</div>
+        <div class="preview-message message-frame assistant" :class="draft.messageStyle">
           <div class="actions"><UiAvatar name="Budz" brand decorative /><strong>Budz</strong></div>
           <ChatMarkdown :content="codeExample" />
         </div>
@@ -243,14 +244,11 @@ async function importTheme(event: Event) {
 .mode-group { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .mode-group label { min-height: 40px; }
 .mode-group input { width: 16px; height: 16px; margin: 0; flex: 0 0 auto; accent-color: var(--accent); }
-.preview-message { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.preview-message { display: grid; min-width: 0; gap: var(--space-2); }
 .preview-message.user { background: var(--message-user-bg); }
 .preview-message.right { margin-inline-start: auto; }
-.preview-message.bubbles { width: fit-content; max-width: 100%; border-radius: var(--radius-xl); }
-.preview-message.flat { background: transparent; border-width: 0 0 1px; border-radius: 0; }
-:global(:root[data-preset="studio"] .preview-message.flat.user) {
-  background: var(--message-user-bg); border: 0; border-radius: var(--radius-lg) var(--radius-lg) var(--radius-xs) var(--radius-lg);
-}
+.preview-message.bubbles { width: fit-content; max-width: 100%; }
+.preview-message.bubbles.assistant { background: var(--message-surface); }
 @media (max-width: 850px) {
   .appearance-grid { grid-template-columns: minmax(0, 1fr); }
   .preview-surface { position: static; grid-row: 1; }

@@ -1,0 +1,53 @@
+@layer components {
+  .message-frame {
+    --message-stroke: color-mix(in srgb, var(--dark-rule) 58%, transparent);
+    position: relative;
+    padding: var(--space-3);
+    border-radius: var(--radius-xs);
+  }
+
+  .message-frame::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 1px var(--message-stroke);
+  }
+
+  :root[data-message-outline="rounded"] .message-frame { border-radius: 1rem; }
+  :root[data-message-outline="oval"] .message-frame {
+    padding-inline: max(var(--space-3), 1.125rem);
+    border-radius: clamp(1.25rem, 3vw, 2.25rem);
+  }
+
+  :root[data-message-outline="wave"] .message-frame { border-radius: .8rem; }
+  :root[data-message-outline="wave"] .message-frame::before {
+    content: '';
+    position: absolute;
+    inset: 3px 0;
+    border-inline: 1px solid var(--message-stroke);
+    border-radius: inherit;
+    pointer-events: none;
+  }
+  :root[data-message-outline="wave"] .message-frame::after {
+    /* Offset the upper and lower arcs by half a tile to draw a wave. */
+    --crest: radial-gradient(ellipse 12px 2px at center bottom, transparent 75%, black 91% 103%, transparent 113%);
+    --trough: radial-gradient(ellipse 12px 2px at center top, transparent 75%, black 91% 103%, transparent 113%);
+    inset-inline: .55rem;
+    border-radius: 0;
+    background: var(--message-stroke);
+    box-shadow: none;
+    mask: var(--crest) left 0 top 0 / 48px 3px repeat-x,
+          var(--trough) left 24px top 3px / 48px 3px repeat-x,
+          var(--crest) left 24px bottom 3px / 48px 3px repeat-x,
+          var(--trough) left 0 bottom 0 / 48px 3px repeat-x;
+  }
+
+  :root[data-preset="contrast"] .message-frame { --message-stroke: var(--dark-rule); }
+  @media (forced-colors: active) {
+    .message-frame::before { border-color: CanvasText; }
+    .message-frame::after { border: 1px solid CanvasText; }
+    :root[data-message-outline="wave"] .message-frame::after { background: transparent; border-inline: 0; mask: none; }
+  }
+}

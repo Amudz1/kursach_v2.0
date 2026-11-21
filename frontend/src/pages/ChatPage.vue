@@ -363,7 +363,7 @@ onUnmounted(() => {
           <div v-if="selectedId && !loading && !messages.length" class="start-choices" aria-label="Примеры запросов">
             <button v-for="idea in defaultIdeas" :key="idea" type="button" class="secondary" @click="setComposer(idea)">{{ idea }}</button>
           </div>
-          <article v-for="item in messages" :key="item.id" class="message" :class="item.role">
+          <article v-for="item in messages" :key="item.id" class="message message-frame" :class="item.role">
             <div class="message-meta">
               <UiAvatar v-if="item.role === 'user'" :name="session.account?.username ?? 'Вы'" size="sm" decorative />
               <UiAvatar v-else :name="activePersona?.name ?? 'Budz'" :brand="appearance.assistantAvatar !== 'persona'"
@@ -597,8 +597,7 @@ onUnmounted(() => {
 .message { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: var(--space-2);
   animation: message-in var(--motion-base) var(--ease-out) both; }
 .message + .message { margin-top: var(--space-5); }
-.message.user { width: fit-content; max-width: min(100%, 600px); padding: var(--space-2) var(--space-3);
-  background: var(--message-user-bg); border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-xs); }
+.message.user { width: fit-content; max-width: min(100%, 600px); background: var(--message-user-bg); }
 .message-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--text-muted); font-size: var(--font-size-sm); }
 .message-meta time { font-size: var(--font-size-xs); }
 .message.user .message-meta { font-size: var(--font-size-xs); }
@@ -616,10 +615,9 @@ onUnmounted(() => {
 .message.assistant :deep(.markdown blockquote) { border-inline-start-color: var(--accent); color: var(--text-muted); }
 .message.assistant :deep(.code-frame) { font-size: var(--font-size-sm); }
 @keyframes message-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-:global(:root[data-message-style="cards"] .workspace .message) { border: 1px solid var(--border); padding: var(--space-3); border-radius: var(--radius-md); }
-:global(:root[data-message-style="bubbles"] .workspace .message) { width: fit-content; max-width: 94%; border-radius: var(--radius-xl); padding: var(--space-3); }
-:global(:root[data-message-style="bubbles"] .workspace .message.assistant) { background: var(--message-surface); border: 1px solid var(--border); }
-:global(:root[data-user-side="right"] .workspace .message.user) { margin-inline-start: auto; border-end-end-radius: var(--radius-xs); }
+:global(:root[data-message-style="bubbles"] .workspace .message) { width: fit-content; max-width: 94%; }
+:global(:root[data-message-style="bubbles"] .workspace .message.assistant) { background: var(--message-surface); }
+:global(:root[data-user-side="right"] .workspace .message.user) { margin-inline-start: auto; }
 .message-actions, .suggestions, .feedback-reasons { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1); }
 @media (hover: hover) {
   :global(:root[data-message-actions="hover"] .workspace .message:not(:hover, :focus-within) .message-actions) { opacity: 0; }
