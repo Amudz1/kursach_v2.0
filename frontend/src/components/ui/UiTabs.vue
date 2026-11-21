@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, useId, watch, type Component } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch, type Component } from 'vue'
 
 // WAI-ARIA tabs: arrows, Home and End move focus and selection; the underline slides to the active tab (ТЗ 5, 7.7).
 const model = defineModel<string>({ required: true })
@@ -8,6 +8,7 @@ const base = `tabs-${useId()}`
 const list = ref<HTMLElement>()
 const indicator = ref({ left: 0, width: 0, ready: false })
 const index = computed(() => props.tabs.findIndex((tab) => tab.value === model.value))
+let resize: ResizeObserver | undefined
 
 function measure() {
   const element = list.value?.querySelectorAll<HTMLElement>('[role=tab]')[index.value]
@@ -15,6 +16,7 @@ function measure() {
 }
 function select(next: number) {
   const count = props.tabs.length
+  if (!count) return
   const target = props.tabs[(next + count) % count]
   model.value = target.value
   void nextTick(() => list.value?.querySelectorAll<HTMLElement>('[role=tab]')[(next + count) % count]?.focus())
@@ -28,8 +30,13 @@ function onKey(event: KeyboardEvent) {
 watch([index, () => props.tabs], () => void nextTick(measure))
 onMounted(() => {
   measure()
-  if (list.value && 'ResizeObserver' in window) new ResizeObserver(measure).observe(list.value)
+  if (list.value && 'ResizeObserver' in window) {
+    resize = new ResizeObserver(measure)
+    resize.observe(list.value)
+    for (const tab of list.value.querySelectorAll('[role=tab]')) resize.observe(tab)
+  }
 })
+onBeforeUnmount(() => resize?.disconnect())
 const tabId = (value: string) => `${base}-tab-${value}`
 const panelId = (value: string) => `${base}-panel-${value}`
 defineExpose({ tabId, panelId })
@@ -45,7 +52,7 @@ defineExpose({ tabId, panelId })
         {{ tab.label }}
       </button>
       <span v-if="indicator.ready" class="indicator" aria-hidden="true"
-        :style="{ width: `${indicator.width}px`, transform: `translateX(${indicator.left}px)` }"></span>
+        :style="{ transform: `translateX(${indicator.left}px) scaleX(${indicator.width})` }"></span>
     </div>
     <div v-for="tab in tabs" v-show="tab.value === model" :id="panelId(tab.value)" :key="tab.value" class="panel" role="tabpanel"
       :aria-labelledby="tabId(tab.value)" tabindex="0">
@@ -70,8 +77,8 @@ defineExpose({ tabId, panelId })
 [role=tab]:focus-visible { outline-offset: -3px; }
 .icon { width: 16px; height: 16px; }
 .indicator {
-  position: absolute; bottom: -1px; left: 0; height: 2px; border-radius: 2px; background-color: var(--accent);
-  transition: transform var(--motion-base) var(--ease-out), width var(--motion-base) var(--ease-out);
+  position: absolute; bottom: 0; left: 0; width: 1px; height: 2px; background-color: var(--accent);
+  transform-origin: left; transition: transform var(--motion-base) var(--ease-out);
 }
 .panel { padding-top: var(--space-5); }
 .panel:focus-visible { outline-offset: 4px; }

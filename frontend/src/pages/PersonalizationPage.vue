@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { api, explain } from '../api'
+import { Brain, ListChecks, SlidersHorizontal } from 'lucide-vue-next'
 import PersonalizationRules from '../components/PersonalizationRules.vue'
 import ProfilePreview from '../components/ProfilePreview.vue'
+import UiTabs from '../components/ui/UiTabs.vue'
+import { useToast } from '../components/ui/use-toast'
 import { expertiseOptions, formatOptions, languageOptions, lengthOptions, toneOptions } from '../profile-options'
 import type { Profile } from '../types'
 
 const sections = [
-  { id: 'style', label: 'Стиль ответа' },
-  { id: 'rules', label: 'Правила задач' },
-  { id: 'context', label: 'Контекст и память' },
+  { value: 'style', label: 'Стиль ответа', icon: SlidersHorizontal },
+  { value: 'rules', label: 'Правила задач', icon: ListChecks },
+  { value: 'context', label: 'Контекст и память', icon: Brain },
 ] as const
 const presets = [
   { name: 'Собеседник', description: 'Дружелюбный тон и обычный текст.',
@@ -20,11 +23,11 @@ const presets = [
     changes: { tone: 'concise', expertiseLevel: 'intermediate', responseFormat: 'lists', responseLength: 'short' } },
 ] as const
 
-const section = ref<(typeof sections)[number]['id']>('style')
+const section = ref('style')
 const profile = ref<Profile>()
 const baseline = ref<Profile>()
 const error = ref('')
-const status = ref('')
+const toast = useToast()
 const busy = ref(false)
 const prepared = computed(() => {
   if (!profile.value) return undefined
@@ -61,20 +64,18 @@ async function load() {
 function reset() {
   if (baseline.value) loadDraft(baseline.value)
   error.value = ''
-  status.value = ''
 }
 
 async function save() {
   if (!prepared.value || !dirty.value || busy.value) return
   error.value = ''
-  status.value = ''
   busy.value = true
   try {
     await api<void>('/me/personalization', { method: 'PUT', body: prepared.value })
     const saved = await api<Profile>('/me/personalization')
     baseline.value = saved
     loadDraft(saved)
-    status.value = 'Настройки сохранены.'
+    toast.success('Настройки сохранены.')
   } catch (reason) { error.value = explain(reason) }
   finally { busy.value = false }
 }
@@ -93,10 +94,8 @@ onMounted(load)
       <form class="settings-editor" @submit.prevent="save">
         <fieldset class="settings-controls" :disabled="busy">
           <legend class="sr-only">Настройки ответов</legend>
-          <div class="section-switch" role="group" aria-label="Разделы персонализации">
-            <button v-for="item in sections" :key="item.id" type="button" :aria-pressed="section === item.id" @click="section = item.id">{{ item.label }}</button>
-          </div>
-          <section v-if="section === 'style'" class="editor-section stack" aria-labelledby="style-heading">
+          <UiTabs v-model="section" label="Разделы персонализации" :tabs="sections">
+          <template #style><section class="editor-section stack" aria-labelledby="style-heading">
             <div><h2 id="style-heading">Стиль ответа</h2><p class="help">Выберите готовый стиль или настройте его вручную.</p></div>
             <div class="presets" role="group" aria-label="Готовые стили">
               <button v-for="preset in presets" :key="preset.name" type="button" :aria-label="preset.name"
@@ -111,12 +110,12 @@ onMounted(load)
               <label>Формат <select v-model="profile.responseFormat" aria-label="Формат"><option v-for="(name, code) in formatOptions" :key="code" :value="code">{{ name }}</option></select></label>
               <label>Длина ответа <select v-model="profile.responseLength" aria-label="Длина ответа"><option v-for="(name, code) in lengthOptions" :key="code" :value="code">{{ name }}</option></select></label>
             </div>
-          </section>
-          <section v-else-if="section === 'rules'" class="editor-section stack" aria-labelledby="rules-heading">
+          </section></template>
+          <template #rules><section class="editor-section stack" aria-labelledby="rules-heading">
             <div><h2 id="rules-heading">Правила задач</h2><p class="help">Задайте исключения из общего стиля для отдельных типов запросов.</p></div>
             <PersonalizationRules v-model="profile" />
-          </section>
-          <section v-else class="editor-section stack" aria-labelledby="context-heading">
+          </section></template>
+          <template #context><section class="editor-section stack" aria-labelledby="context-heading">
             <div><h2 id="context-heading">Контекст и память</h2><p class="help">Укажите, что Budz стоит учитывать в будущих ответах.</p></div>
             <label>Текущая цель <input v-model="profile.goal" maxlength="300" placeholder="Например, подготовиться к защите диплома"></label>
             <label>О себе <textarea v-model="profile.about" rows="3" maxlength="1000" placeholder="Что вы уже умеете и какие примеры помогают вам разобраться?"></textarea></label>
@@ -127,10 +126,11 @@ onMounted(load)
               <label class="check"><input v-model="profile.autoMemoryEnabled" type="checkbox"> Автоматически запоминать факты из диалогов</label>
               <RouterLink to="/memory" class="text-button self-start">Управлять сохранёнными фактами ↗</RouterLink>
             </div>
-          </section>
+          </section></template>
+          </UiTabs>
         </fieldset>
         <footer class="editor-footer">
-          <p class="help" aria-live="polite">{{ dirty ? 'Есть несохранённые изменения' : status || 'Настройки актуальны' }}</p>
+          <p class="help" aria-live="polite">{{ dirty ? 'Есть несохранённые изменения' : 'Настройки актуальны' }}</p>
           <div class="actions">
             <button v-if="dirty" class="plain-button" type="button" :disabled="busy" @click="reset">Отменить изменения</button>
             <button class="primary" type="submit" :disabled="!dirty || busy">{{ busy ? 'Сохраняем…' : 'Сохранить настройки' }}</button>

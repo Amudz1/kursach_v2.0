@@ -7,6 +7,7 @@ import type { Account } from './types'
 type Grant = { accessToken: string; expiresAt: string }
 
 export const useSession = defineStore('session', () => {
+  const startedAt = Date.now()
   const account = ref<Account | null>(null)
   const access = ref<string | null>(null)
   let expires = 0
@@ -78,5 +79,5 @@ export const useSession = defineStore('session', () => {
     return await refresh() ?? ''
   }
 
-  return { access, account, ready, reload, signIn, signOut, clear, hubToken }
+  return { access, account, ready, reload, signIn, signOut, clear, hubToken, startedAt }
 })

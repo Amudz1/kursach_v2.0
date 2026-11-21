@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { BookOpen, Code, Lightbulb, ListChecks, PenLine } from 'lucide-vue-next'
 import { formatOptions, labelFor, lengthOptions, taskOptions } from '../profile-options'
 import type { Profile, TaskMode, TaskPreference } from '../types'
 
 const profile = defineModel<Profile>({ required: true })
 const selected = ref<TaskMode>('code')
 const rule = computed(() => profile.value.taskRules.find(({ task }) => task === selected.value))
+const icons = { general: Lightbulb, code: Code, learn: BookOpen, write: PenLine, plan: ListChecks }
+const colors = { general: 'cat-1', code: 'cat-2', learn: 'cat-3', write: 'cat-4', plan: 'cat-5' }
 
 const descriptions: Record<TaskMode, string> = {
   general: 'Вопросы, для которых не найден отдельный тип задачи.',
@@ -35,7 +38,7 @@ function changeRule(key: 'length' | 'format' | 'instructions', value: string) {
       <div class="task-layout">
         <div class="task-list" role="group" aria-label="Тип задачи">
           <button v-for="(label, task) in taskOptions" :key="task" type="button" :aria-pressed="selected === task" @click="selected = task">
-            {{ label }}
+            <span class="task-caption"><component :is="icons[task]" :style="{ '--task-color': `var(--${colors[task]})` }" aria-hidden="true" />{{ label }}</span>
             <span v-if="profile.taskRules.some((item) => item.task === task)" class="custom-mark" title="Есть своё правило" aria-label="Есть своё правило"></span>
           </button>
         </div>
@@ -66,6 +69,8 @@ function changeRule(key: 'length' | 'format' | 'instructions', value: string) {
 </template>
 
 <style scoped>
+.task-caption { display: inline-flex; align-items: center; gap: var(--space-2); }
+.task-caption svg { width: 16px; height: 16px; flex: 0 0 auto; color: light-dark(var(--task-color), color-mix(in oklab, var(--task-color), white 55%)); }
 .mode-switch { min-height: 45px; padding: .5rem .75rem; background: var(--pale); border-radius: 8px; font-size: .89rem; }
 .task-layout { display: grid; grid-template-columns: minmax(126px, .75fr) minmax(0, 1.65fr); align-items: start; gap: .8rem; }
 .task-list { display: grid; gap: .2rem; }

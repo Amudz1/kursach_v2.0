@@ -216,3 +216,8 @@ async function readContext() {
     </dialog>
   </section>
 </template>
+
+<style scoped>
+.record { transition: background-color var(--motion-base), border-color var(--motion-base); }
+.record:hover, .record:focus-within { background: var(--surface-2); border-color: var(--accent); }
+</style>

@@ -4,6 +4,7 @@ import { RouterLink, useRouter } from 'vue-router'
 import { api, explain } from '../api'
 import { useSession } from '../session'
 import StatisticsPanel from '../components/StatisticsPanel.vue'
+import UiAvatar from '../components/ui/UiAvatar.vue'
 import type { Statistics } from '../types'
 
 const session = useSession()
@@ -56,12 +57,20 @@ async function remove() {
 
 <template>
   <section class="page">
-    <header class="page-heading"><h1>Профиль</h1><p>{{ session.account?.username }} · {{ session.account?.email }}</p></header>
+    <header class="page-heading">
+      <div class="actions">
+        <UiAvatar v-if="session.account" :name="session.account.username" size="xl" decorative />
+        <div><h1>Профиль</h1><p>{{ session.account?.username }} · {{ session.account?.email }}</p></div>
+      </div>
+    </header>
     <p v-if="error" class="notice danger" role="alert">{{ error }}</p>
     <p v-if="success" class="notice success" role="status">{{ success }}</p>
     <div class="profile-grid">
       <div class="stack">
-        <RouterLink to="/appearance" class="secondary self-start">Оформление</RouterLink>
+        <div class="actions">
+          <RouterLink to="/appearance" class="secondary self-start">Оформление</RouterLink>
+          <RouterLink to="/personas" class="secondary self-start">Персоны</RouterLink>
+        </div>
         <form class="fieldset stack" @submit.prevent="updateEmail">
           <h2>Электронная почта</h2>
           <label>Новый email <input v-model="email.email" type="email" autocomplete="email" maxlength="254" required></label>

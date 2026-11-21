@@ -55,11 +55,11 @@ function pickCustom(event: Event) {
 legend { margin-bottom: var(--space-2); padding: 0; font-weight: 600; font-size: var(--font-size-sm); }
 .swatches { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .swatch { position: relative; display: inline-grid !important; cursor: pointer; }
-.swatch input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.swatch input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .chip {
   display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--radius-full);
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 18%, transparent);
-  transition: transform var(--motion-fast) var(--ease-spring), box-shadow var(--motion-base);
+  pointer-events: none; transition: transform var(--motion-fast) var(--ease-spring), box-shadow var(--motion-base);
 }
 .none .chip { background: repeating-linear-gradient(-45deg, var(--surface-2) 0 4px, var(--surface-1) 4px 8px); color: var(--text); }
 .mark { width: 16px; height: 16px; color: var(--on-fill); filter: drop-shadow(0 0 1px var(--c-ink-900)); }

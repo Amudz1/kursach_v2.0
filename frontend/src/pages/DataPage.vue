@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, explain } from '../api'
+import { Upload } from 'lucide-vue-next'
+import UiProgress from '../components/ui/UiProgress.vue'
 import { exportConversations } from '../data-transfer'
 import type { Workspace } from '../types'
 
@@ -21,6 +23,7 @@ const result = ref<ImportReport>()
 const importedWorkspace = ref('')
 const openingQuery = computed(() => importedWorkspace.value ? { workspace: importedWorkspace.value } : {})
 const importing = ref(false)
+const fileHover = ref(false)
 const downloading = ref(false)
 const importError = ref('')
 const exportError = ref('')
@@ -38,9 +41,20 @@ async function load() {
 }
 
 function selectFile(event: Event) {
-  file.value = (event.target as HTMLInputElement).files?.[0]
+  setImportFile((event.target as HTMLInputElement).files?.[0])
+}
+
+function setImportFile(selected?: File) {
+  file.value = selected
   importError.value = ''
   result.value = undefined
+}
+
+function dropImport(event: DragEvent) {
+  fileHover.value = false
+  if (importing.value) return
+  if (picker.value) picker.value.value = ''
+  setImportFile(event.dataTransfer?.files[0])
 }
 
 async function importFile() {
@@ -102,7 +116,13 @@ onMounted(load)
         <label>Куда импортировать <select v-model="target" aria-label="Куда импортировать" :disabled="importing">
           <option value="">Личные диалоги</option><option v-for="space in spaces" :key="space.id" :value="space.id">{{ space.name }}</option>
         </select></label>
-        <label>Файл переписки <input ref="picker" type="file" accept=".json,application/json" :disabled="importing" @change="selectFile"></label>
+        <label class="drop-zone" :class="{ 'drop-active': fileHover }" @dragover.prevent="fileHover = !importing"
+          @dragleave="fileHover = false" @drop.prevent="dropImport">
+          <span><Upload aria-hidden="true" />Файл переписки</span>
+          <span class="help">{{ file ? file.name : 'Перетащите JSON сюда или выберите файл.' }}</span>
+          <input ref="picker" aria-label="Файл переписки" type="file" accept=".json,application/json" :disabled="importing" @change="selectFile">
+        </label>
+        <UiProgress v-if="importing" :value="0" label="Импорт диалогов" indeterminate />
         <button type="submit" class="primary self-start" :disabled="importing || !file">{{ importing ? 'Импортируем…' : 'Импортировать' }}</button>
         <p v-if="importError" class="notice danger" role="alert">{{ importError }}</p>
         <div v-if="result" class="notice success" role="status">
@@ -144,6 +164,11 @@ onMounted(load)
 </template>
 
 <style scoped>
+.drop-zone { padding: var(--space-4); border: 1px dashed var(--dark-rule); border-radius: var(--radius-md);
+  background: var(--surface-2); transition: background-color var(--motion-base), border-color var(--motion-base), box-shadow var(--motion-base); }
+.drop-zone > span:first-child { display: flex; align-items: center; gap: var(--space-2); }
+.drop-zone svg { width: 18px; height: 18px; color: var(--accent); }
+.drop-zone:focus-within, .drop-zone.drop-active { border-color: var(--accent); background: var(--surface-3); box-shadow: var(--glow-sm); }
 .data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 1rem; }
 details > p { padding-top: .55rem; }
 .data-privacy { margin-top: 1rem; }

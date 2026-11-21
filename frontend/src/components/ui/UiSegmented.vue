@@ -33,7 +33,7 @@ onMounted(() => {
     <legend :class="{ 'sr-only': hideLabel }">{{ label }}</legend>
     <div ref="root" class="track">
       <span v-if="thumb.ready" class="thumb" aria-hidden="true"
-        :style="{ width: `${thumb.width}px`, transform: `translateX(${thumb.left}px)` }"></span>
+        :style="{ '--segment-width': `${thumb.width}px`, transform: `translateX(${thumb.left}px)` }"></span>
       <label v-for="option in options" :key="option.value" class="segment" :class="{ active: option.value === model }">
         <input v-model="model" type="radio" :name="name" :value="option.value" />
         <component :is="option.icon" v-if="option.icon" class="icon" aria-hidden="true" />
@@ -53,9 +53,9 @@ legend { margin-bottom: var(--space-2); padding: 0; font-weight: 600; font-size:
 .block .track { display: flex; width: 100%; }
 .block .segment { flex: 1 1 0; }
 .thumb {
-  position: absolute; top: 3px; bottom: 3px; left: 0; border-radius: calc(var(--radius-md) - 3px);
+  position: absolute; top: 3px; bottom: 3px; left: 0; width: var(--segment-width); border-radius: max(0px, calc(var(--radius-md) - 3px));
   background-color: var(--surface-1); box-shadow: var(--elevation-1), 0 0 0 1px var(--border);
-  transition: transform var(--motion-base) var(--ease-out), width var(--motion-base) var(--ease-out);
+  transition: transform var(--motion-base) var(--ease-out);
 }
 .segment {
   position: relative; display: inline-flex !important; grid-auto-flow: column; align-items: center; justify-content: center;
@@ -67,7 +67,7 @@ legend { margin-bottom: var(--space-2); padding: 0; font-weight: 600; font-size:
 .segment:hover { color: var(--text); }
 .segment.active { color: var(--text); font-weight: 700; }
 .segment:active { transform: scale(.97); }
-.segment input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.segment input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .segment:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 1px; }
 .icon { width: 16px; height: 16px; }
 </style>
