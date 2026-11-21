@@ -36,6 +36,121 @@ async function openProfile() {
   await page.getByRole('menuitem', { name: 'Профиль', exact: true }).click()
 }
 
+async function openAppearance() {
+  await action('Меню аккаунта').click()
+  await page.getByRole('menuitem', { name: 'Оформление', exact: true }).click()
+  await heading('Оформление').waitFor()
+}
+
+async function verifyPresetContrast() {
+  const results = await page.evaluate(() => {
+    const root = document.documentElement
+    const presetBefore = root.dataset.preset
+    const themeBefore = root.dataset.theme
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 1
+    const context = canvas.getContext('2d')
+    const probe = document.createElement('span')
+    probe.hidden = true
+    document.body.append(probe)
+    function luminosity(token) {
+      probe.style.color = `var(--${token})`
+      context.clearRect(0, 0, 1, 1)
+      context.fillStyle = getComputedStyle(probe).color
+      context.fillRect(0, 0, 1, 1)
+      const rgb = Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3).map((channel) => {
+        const value = channel / 255
+        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+      })
+      return .2126 * rgb[0] + .7152 * rgb[1] + .0722 * rgb[2]
+    }
+    const pairs = [
+      ['text', 'surface-0'], ['text', 'surface-1'], ['text', 'surface-2'], ['text', 'surface-3'],
+      ['text-muted', 'surface-0'], ['text-muted', 'surface-1'], ['text-muted', 'surface-2'],
+      ['accent', 'surface-1'], ['accent-2', 'surface-1'], ['btn-primary-text', 'btn-primary-bg'],
+      ...['danger', 'success', 'warning', 'info'].map((tone) => [`status-${tone}-text`, `status-${tone}-bg`]),
+    ]
+    const failures = []
+    try {
+      for (const preset of ['classic', 'ultramarine', 'graphite', 'midnight', 'mint', 'sunset', 'terminal', 'contrast']) {
+        root.dataset.preset = preset
+        for (const mode of ['light', 'dark']) {
+          root.dataset.theme = mode
+          for (const [foreground, background] of pairs) {
+            const values = [luminosity(foreground), luminosity(background)]
+            const ratio = (Math.max(...values) + .05) / (Math.min(...values) + .05)
+            const minimum = preset === 'contrast' && foreground.startsWith('text') ? 7 : 4.5
+            if (ratio < minimum) failures.push(`${preset}/${mode} ${foreground} on ${background}: ${ratio.toFixed(2)} < ${minimum}`)
+          }
+        }
+      }
+    } finally {
+      presetBefore ? root.dataset.preset = presetBefore : delete root.dataset.preset
+      themeBefore ? root.dataset.theme = themeBefore : delete root.dataset.theme
+      probe.remove()
+    }
+    return failures
+  })
+  assert.deepEqual(results, [], 'Preset contrast')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  assert.equal(await page.locator('.auth-side').evaluate((element) => getComputedStyle(element, '::before').animationName), 'none')
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.evaluate(() => { document.documentElement.dataset.motion = 'off' })
+  assert.equal(await page.locator('.auth-side').evaluate((element) => getComputedStyle(element, '::before').animationName), 'none')
+  await page.evaluate(() => { document.documentElement.dataset.motion = 'full' })
+}
+
+async function captureAppearanceMatrix() {
+  const matrix = path.join(captures, 'presets')
+  await fs.mkdir(matrix, { recursive: true })
+  const screens = [
+    { id: 'appearance', ready: 'Оформление' },
+    { id: 'chat', ready: 'Коллекции в C#', nav: 'Диалоги' },
+    { id: 'personalization', ready: 'Персонализация', nav: 'Персонализация' },
+    { id: 'plans', ready: 'Тарифы', nav: 'Тарифы' },
+  ]
+  const layouts = [
+    { id: 'desktop', width: 1440, height: 900 },
+    { id: 'mobile', width: 320, height: 820 },
+  ]
+  for (const [preset, label] of [['classic', 'Классическая'], ['midnight', 'Полночь'], ['mint', 'Мята']]) {
+    for (const [mode, modeLabel] of [['light', 'Светлая'], ['dark', 'Тёмная']]) {
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await openAppearance()
+      await action(label).click()
+      await page.getByRole('radio', { name: modeLabel, exact: true }).check()
+      if (await action('Сохранить').isEnabled()) {
+        await action('Сохранить').click()
+        await page.getByText('Оформление сохранено.', { exact: true }).first().waitFor()
+        await page.locator('button[aria-busy="true"]').waitFor({ state: 'hidden' })
+      }
+      const dismiss = page.getByRole('button', { name: 'Закрыть уведомление' })
+      while (await dismiss.count()) {
+        await dismiss.first().click()
+        await page.locator('.ui-toast-leave-active').first().waitFor({ state: 'hidden' })
+      }
+      for (const screen of screens) {
+        await page.setViewportSize({ width: 1440, height: 900 })
+        if (screen.nav) await goTo(screen.nav)
+        if (screen.id === 'chat') {
+          if (!(await history.isVisible())) await action('Показать список диалогов').click()
+          await history.getByRole('link', { name: 'Коллекции в C#', exact: true }).click()
+          await page.getByText('Подключено', { exact: true }).waitFor()
+        }
+        if (screen.id === 'personalization') await heading('Проверка ответа').waitFor()
+        if (screen.id === 'plans') await page.getByText('Токены в день', { exact: true }).first().waitFor()
+        await heading(screen.ready).waitFor()
+        await page.evaluate(async () => { window.scrollTo(0, 0); await document.fonts.ready })
+        for (const { id, width, height } of layouts) {
+          await page.setViewportSize({ width, height })
+          await noOverflow()
+          await page.screenshot({ path: path.join(matrix, `${preset}-${mode}-${screen.id}-${id}.png`), animations: 'disabled' })
+        }
+      }
+    }
+  }
+}
+
 async function readableColor(selector) {
   const contrast = await page.locator(selector).evaluate((element) => {
     const canvas = document.createElement('canvas')
@@ -76,13 +191,16 @@ try {
   await page.goto(base)
   await heading('Войти в Budz').waitFor()
   assert.equal(await background(), lightBackground)
-  await action('Создать аккаунт').click()
+  await verifyPresetContrast()
+  await page.evaluate(() => { localStorage.setItem('budz.theme', 'system') })
+  await page.getByRole('radio', { name: 'Регистрация', exact: true }).check()
   await page.getByLabel('Имя пользователя').fill(user)
   await page.getByLabel('Email', { exact: true }).fill(user + '@demo.invalid')
   await page.getByLabel('Пароль', { exact: true }).fill(password)
   await page.getByLabel('Повторите пароль').fill(password)
   await action('Создать аккаунт').click()
   await heading('Как должен выглядеть Budz?').waitFor()
+  assert.equal(await page.evaluate(() => localStorage.getItem('budz.theme')), null)
   assert.equal(await page.getByRole('radio', { name: 'Как в браузере' }).isChecked(), true)
   await page.getByRole('radio', { name: 'Тёмная' }).check()
   assert.equal(await background(), darkBackground)
@@ -129,6 +247,11 @@ try {
   await page.locator('.message.assistant .markdown').first().waitFor()
   assert.ok(performance.now() - sentAt < 3000, 'Demo provider first chunk exceeded the 3-second target')
   await action('Остановить').click()
+  const userCode = page.locator('.message.user .code-frame').first()
+  await userCode.getByRole('button', { name: 'Номера строк' }).click()
+  assert.equal(await userCode.getByRole('button', { name: 'Номера строк' }).getAttribute('aria-pressed'), 'true')
+  assert.equal(await userCode.locator('.code-gutter').textContent(), '1')
+  await userCode.getByRole('button', { name: 'Номера строк' }).click()
   await answerEnds('Генерация остановлена')
   await action('Повторить').click()
   await answerEnds('Демонстрационный ответ')
@@ -202,12 +325,16 @@ try {
   const otherContext = await browser.newContext({ locale: 'ru-RU' })
   try {
     const otherPage = await otherContext.newPage()
+    await otherContext.addInitScript(() => {
+      if (!localStorage.getItem('budz.appearance')) localStorage.setItem('budz.theme', 'light')
+    })
     await otherPage.goto(base)
     await otherPage.getByLabel('Логин или email').fill(user)
     await otherPage.getByLabel('Пароль', { exact: true }).fill(password)
     await otherPage.getByRole('button', { name: 'Войти', exact: true }).click()
     await otherPage.waitForURL('**/chats')
     assert.equal(await otherPage.locator('html').getAttribute('data-preset'), 'midnight')
+    assert.equal(await otherPage.evaluate(() => localStorage.getItem('budz.theme')), null)
   } finally { await otherContext.close() }
   await write('appearance-midnight.png')
   await action('Сбросить к стандартным').click()
@@ -231,10 +358,10 @@ try {
   await page.getByLabel('Язык', { exact: true }).selectOption('en')
   await page.getByText('What is a collection?', { exact: true }).waitFor()
   await page.getByLabel('Язык', { exact: true }).selectOption('ru')
-  await action('Контекст и память').click()
+  await page.getByRole('tab', { name: 'Контекст и память', exact: true }).click()
   await page.getByLabel('Текущая цель').fill('Подготовить диплом по C#')
   await page.getByLabel('Использовать сохранённые факты в ответах').uncheck()
-  await action('Правила задач').click()
+  await page.getByRole('tab', { name: 'Правила задач', exact: true }).click()
   await page.getByLabel('Длина для задачи').selectOption('short')
   await action('Сбросить правило задачи').click()
   assert.equal(await page.getByLabel('Длина для задачи').inputValue(), '')
@@ -278,15 +405,22 @@ try {
   const drawer = page.getByRole('dialog', { name: 'Меню' })
   await drawer.waitFor()
   assert.equal(await drawer.evaluate((element) => element.contains(document.activeElement)), true)
+  await drawer.getByRole('button', { name: 'Выйти' }).focus()
+  await page.keyboard.press('Tab')
+  assert.equal(await drawer.getByRole('button', { name: 'Закрыть меню' }).evaluate((element) => element === document.activeElement), true)
+  await write('drawer-mobile.png')
   await page.keyboard.press('Escape')
   await drawer.waitFor({ state: 'hidden' })
   assert.equal(await action('Открыть меню').evaluate((element) => element === document.activeElement), true)
+  await action('Открыть меню').click()
+  await page.mouse.click(350, 400)
+  await drawer.waitFor({ state: 'hidden' })
   await page.getByRole('link', { name: 'К проверке ↓' }).click()
   await page.getByText('Что такое коллекция?', { exact: true }).waitFor()
-  await action('Контекст и память').click()
+  await page.getByRole('tab', { name: 'Контекст и память', exact: true }).click()
   assert.equal(await page.getByLabel('Текущая цель').inputValue(), 'Подготовить диплом по C#')
   assert.equal(await page.getByLabel('Использовать сохранённые факты в ответах').isChecked(), false)
-  await action('Стиль ответа').click()
+  await page.getByRole('tab', { name: 'Стиль ответа', exact: true }).click()
   await noOverflow()
   await page.evaluate(() => window.scrollTo(0, 0))
   await write('personalization-mobile.png')
@@ -406,12 +540,13 @@ try {
   await rules.getByText('Выключена', { exact: true }).waitFor()
   await action('Закрыть').click()
 
+  if (process.env.BUDZ_VISUAL === '1') await captureAppearanceMatrix()
   await openProfile()
   await heading('Личная статистика').waitFor()
   await page.setViewportSize({ width: 360, height: 800 })
-  await customColor.waitFor()
   await noOverflow()
   await page.getByText('Запросов за период', { exact: true }).waitFor()
+  await write('profile-mobile.png')
   await action('Удалить аккаунт').click()
   await page.getByLabel('Подтвердите паролем').fill(password)
   await page.getByRole('dialog').getByRole('button', { name: 'Удалить аккаунт', exact: true }).click()

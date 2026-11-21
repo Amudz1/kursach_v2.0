@@ -6,18 +6,25 @@ import { lockScroll, trapTab, unlockScroll } from './ui/focus'
 const props = defineProps<{ id: string; label: string; returnFocus?: HTMLElement | null }>()
 const open = defineModel<boolean>('open', { required: true })
 const panel = ref<HTMLElement>()
-let startX: number | null = null
+let touchStart: { x: number; y: number } | undefined
 
 function close() { open.value = false }
 function onKey(event: KeyboardEvent) {
   if (event.key === 'Escape') { event.preventDefault(); close() }
   else if (panel.value) trapTab(event, panel.value)
 }
-function onTouchStart(event: TouchEvent) { startX = event.touches[0]?.clientX ?? null }
+function onTouchStart(event: TouchEvent) {
+  const touch = event.touches[0]
+  touchStart = event.touches.length === 1 && touch ? { x: touch.clientX, y: touch.clientY } : undefined
+}
 function onTouchEnd(event: TouchEvent) {
-  const endX = event.changedTouches[0]?.clientX
-  if (startX !== null && endX !== undefined && startX - endX > 60) close()
-  startX = null
+  const touch = event.changedTouches[0]
+  if (touchStart && touch) {
+    const horizontal = touchStart.x - touch.clientX
+    const vertical = Math.abs(touchStart.y - touch.clientY)
+    if (horizontal > 60 && horizontal > vertical) close()
+  }
+  touchStart = undefined
 }
 
 watch(open, async (value) => {
@@ -40,7 +47,7 @@ onBeforeUnmount(() => { if (open.value) unlockScroll() })
       <div v-if="open" class="drawer-layer" @keydown="onKey">
         <div class="drawer-backdrop" aria-hidden="true" @click="close"></div>
         <div :id="id" ref="panel" class="drawer" role="dialog" aria-modal="true" :aria-label="label" tabindex="-1"
-          @touchstart.passive="onTouchStart" @touchend="onTouchEnd">
+          @touchstart.passive="onTouchStart" @touchend="onTouchEnd" @touchcancel="touchStart = undefined">
           <slot :close="close" />
         </div>
       </div>

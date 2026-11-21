@@ -514,4 +514,11 @@ onUnmounted(() => {
 @media (max-width: 390px) {
   .start-choices { grid-template-columns: minmax(0, 1fr); }
 }
+@media (max-width: 440px) {
+  .history-toggle { grid-area: 1 / 1; }
+  .conversation-heading { grid-area: 1 / 2 / 2 / -1; }
+  .chat-rules-button { grid-area: 2 / 3; }
+  .new-chat-control { grid-area: 2 / 4; }
+  .chat-menu { grid-area: 2 / 5; }
+}
 </style>

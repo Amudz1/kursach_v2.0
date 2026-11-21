@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import { Brain, CreditCard, Database, Infinity as Unlimited, LogOut, MessagesSquare, Moon, Palette, ShieldCheck, SlidersHorizontal, Sun, User } from 'lucide-vue-next'
 import { appearance, setAppearance } from '../appearance'
 import { explain } from '../api'
@@ -15,7 +15,6 @@ import { useToast } from './ui/use-toast'
 
 const props = defineProps<{ account: Account }>()
 const route = useRoute()
-const router = useRouter()
 const session = useSession()
 const toast = useToast()
 const drawer = ref(false)
@@ -31,11 +30,11 @@ const primary = computed(() => [
   { to: '/plans', label: 'Тарифы', icon: CreditCard },
   ...(props.account.role === 'Admin' ? [{ to: '/admin', label: 'Админ', icon: ShieldCheck }] : []),
 ])
-const secondary = computed(() => [
+const secondary = [
   { to: '/profile', label: 'Профиль', icon: User },
   { to: '/appearance', label: 'Оформление', icon: Palette },
   { to: '/data', label: 'Данные', icon: Database },
-].filter((item) => item.to !== '/appearance' || router.hasRoute('appearance')))
+]
 const systemDark = window.matchMedia('(prefers-color-scheme: dark)')
 const darkPreference = ref(systemDark.matches)
 const dark = computed(() => appearance.value.mode === 'dark' || (appearance.value.mode === 'system' && darkPreference.value))

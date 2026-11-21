@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { setTheme, setThemeTint, theme, themeTint } from '../theme'
 import type { Theme } from '../theme'
+import { legacyFallbackSwatch as sampleTint, legacySwatches as swatches } from '../appearance/swatches'
 
 const choices: { value: Theme; label: string; description: string }[] = [
   { value: 'system', label: 'Как в браузере', description: 'Автоматически следует настройке устройства' },
@@ -8,14 +9,6 @@ const choices: { value: Theme; label: string; description: string }[] = [
   { value: 'dark', label: 'Тёмная', description: 'Приглушённый тёмный фон' },
 ]
 
-const swatches = [
-  { value: null, label: 'Стандартный' },
-  { value: '#b48965', label: 'Песочный' },
-  { value: '#7293b6', label: 'Дымчато-синий' },
-  { value: '#829780', label: 'Шалфей' },
-  { value: '#907a9f', label: 'Сливовый' },
-]
-const sampleTint = '#829780'
 </script>
 
 <template>
@@ -68,7 +61,7 @@ const sampleTint = '#829780'
   background: var(--inset); color: var(--ink); font-size: .79rem; font-weight: 620; cursor: pointer; }
 .palette-choice:hover, .palette-choice[aria-pressed="true"], .custom-color:hover { background: var(--pale); border-color: var(--accent); }
 .swatch { width: .8rem; height: .8rem; flex: 0 0 auto; border-radius: 50%;
-  background: var(--swatch, light-dark(#d0c0a8, #818890)); border: 1px solid var(--dark-rule); }
+  background: var(--swatch, var(--dark-rule)); border: 1px solid var(--dark-rule); }
 .custom-color input { width: 1.55rem; height: 1.45rem; padding: .11rem; border-radius: 5px; cursor: pointer; }
 .custom-color small { color: var(--muted); font: .76rem ui-monospace, Consolas, monospace; }
 @media (max-width: 560px) { .theme-choices { grid-template-columns: 1fr; } }

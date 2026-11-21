@@ -7,6 +7,7 @@ import {
   previewAppearance, resetAppearance, saveAccountAppearance, savedAppearance, type AppearanceSettings, type PresetId,
 } from '../appearance'
 import { adjustForContrast, hexContrast, parseCssColor, toHex } from '../appearance/color'
+import { accentSwatches as swatches } from '../appearance/swatches'
 import ChatMarkdown from '../components/ChatMarkdown.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiBadge from '../components/ui/UiBadge.vue'
@@ -22,14 +23,11 @@ const importFile = ref<HTMLInputElement>()
 const previewSurface = ref<HTMLElement>()
 const contrastWarning = ref<{ key: 'accent' | 'accent2'; ratio: number; correction: string | null }[]>([])
 const prefersContrast = window.matchMedia('(prefers-contrast: more)').matches
-const dirty = computed(() => JSON.stringify(draft.value) !== JSON.stringify(savedAppearance.value))
-const modified = computed(() => JSON.stringify(draft.value) !== JSON.stringify(presetSettings(draft.value.preset)))
-const swatches = [
-  ['#3d5949', 'Хвойный'], ['#183caf', 'Ультрамарин'], ['#456799', 'Дымчато-синий'],
-  ['#456556', 'Шалфей'], ['#743d6b', 'Слива'], ['#125b65', 'Бирюза'],
-  ['#a34e36', 'Коралл'], ['#78542f', 'Песочный'], ['#9b2b4e', 'Малина'],
-  ['#494b85', 'Ирис'], ['#5e652c', 'Олива'], ['#303e54', 'Графит'],
-].map(([value, label]) => ({ value, label }))
+function matches(settings: AppearanceSettings, reference: Readonly<AppearanceSettings>) {
+  return (Object.keys(settings) as (keyof AppearanceSettings)[]).every((key) => settings[key] === reference[key])
+}
+const dirty = computed(() => !matches(draft.value, savedAppearance.value))
+const modified = computed(() => !matches(draft.value, presetSettings(draft.value.preset)))
 const secondSwatches = [{ value: 'auto', label: 'Автоматический второй акцент', css: 'var(--accent-2)' }, ...swatches.slice(0, 8)]
 const colorKeys = ['accent', 'accent2', 'assistantAvatarColor'] as const
 type SelectKey = Exclude<keyof typeof appearanceOptions, 'preset'>
@@ -69,6 +67,9 @@ function selectValue(key: SelectKey, event: Event) {
 function choosePreset(id: PresetId) { draft.value = presetSettings(id) }
 function cancel() { draft.value = { ...savedAppearance.value }; error.value = '' }
 watch(draft, (settings) => previewAppearance(settings), { flush: 'sync' })
+watch(savedAppearance, (settings, previous) => {
+  if (matches(draft.value, previous)) draft.value = { ...settings }
+})
 watchPostEffect(() => {
   const surface = previewSurface.value
   const colors = draft.value
@@ -239,6 +240,7 @@ async function importTheme(event: Event) {
 [data-choice="contrast"] { --sample-bg: white; --sample-line: black; }
 .mode-group { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .mode-group label { min-height: 40px; }
+.mode-group input { width: 16px; height: 16px; margin: 0; flex: 0 0 auto; accent-color: var(--accent); }
 .preview-message { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); }
 .preview-message.user { background: var(--message-user-bg); }
 .preview-message.right { margin-inline-start: auto; }

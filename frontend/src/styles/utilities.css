@@ -5,9 +5,11 @@
   .skip-link:focus { position: fixed; z-index: 10; top: .5rem; left: .5rem; padding: .5rem .8rem; background: var(--input); }
 
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
   }
-  :root:is([data-motion="reduced"], [data-motion="off"]) :is(*, *::before, *::after) {
-    scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important;
+  :root:is([data-motion="reduced"], [data-motion="off"]) *,
+  :root:is([data-motion="reduced"], [data-motion="off"]) *::before,
+  :root:is([data-motion="reduced"], [data-motion="off"]) *::after {
+    scroll-behavior: auto !important; animation: none !important; transition: none !important;
   }
 }

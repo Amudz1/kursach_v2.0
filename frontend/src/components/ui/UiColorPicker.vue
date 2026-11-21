@@ -2,6 +2,7 @@
 import { computed, ref, useId, watch } from 'vue'
 import { Check } from 'lucide-vue-next'
 import { readHex } from '../../appearance/model'
+import { fallbackSwatch } from '../../appearance/swatches'
 
 // Swatches as a radio group plus a custom colour. Values are either hex colours or token names such as `cat-3`.
 const model = defineModel<string | null>({ default: null })
@@ -19,7 +20,7 @@ const props = withDefaults(defineProps<{
 const name = `color-${useId()}`
 const customId = `${name}-custom`
 const isSwatch = computed(() => props.swatches.some((swatch) => swatch.value === model.value))
-const customValue = ref(readHex(model.value) ?? '#3d5949')
+const customValue = ref(readHex(model.value) ?? fallbackSwatch)
 watch(model, (value) => { const hex = readHex(value); if (hex && !isSwatch.value) customValue.value = hex })
 const cssOf = (swatch: { value: string; css?: string }) => swatch.css ?? (swatch.value.startsWith('#') ? swatch.value : `var(--${swatch.value})`)
 function pickCustom(event: Event) {

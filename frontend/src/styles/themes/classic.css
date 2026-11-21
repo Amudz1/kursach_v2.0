@@ -84,8 +84,8 @@
     --sheet: color-mix(in srgb, var(--base-sheet), var(--theme-tint) calc(var(--background-tint) * 6 / 11));
     --input: color-mix(in srgb, var(--base-input), var(--theme-tint) calc(var(--background-tint) * 4 / 11));
     --message-surface: color-mix(in srgb, var(--base-message), var(--theme-tint) calc(var(--background-tint) * 7 / 11));
-    --accent: color-mix(in srgb, var(--base-accent), var(--theme-tint) var(--background-tint));
-    --accent-dark: color-mix(in srgb, var(--base-accent-dark), var(--theme-tint) var(--background-tint));
+    --accent: var(--theme-tint);
+    --accent-dark: var(--theme-tint);
     --pale: color-mix(in srgb, var(--base-pale), var(--theme-tint) calc(var(--background-tint) * 8 / 11));
     --rule: color-mix(in srgb, var(--base-rule), var(--theme-tint) calc(var(--background-tint) * 14 / 11));
     --inset: color-mix(in srgb, var(--base-inset), var(--theme-tint) calc(var(--background-tint) * 8 / 11));
@@ -94,6 +94,12 @@
     --primary-fill: color-mix(in srgb, var(--base-primary-fill), var(--theme-tint) calc(var(--background-tint) * 12 / 11));
     --feature: color-mix(in srgb, var(--base-feature), var(--theme-tint) calc(var(--background-tint) * 13 / 11));
     --focus: color-mix(in srgb, var(--base-focus), var(--theme-tint) calc(var(--background-tint) * 12 / 11));
+  }
+
+  :root[data-background-tinted]:not([data-tint]) {
+    --paper: color-mix(in srgb, var(--base-paper), var(--base-accent) var(--background-tint));
+    --sheet: color-mix(in srgb, var(--base-sheet), var(--base-accent) calc(var(--background-tint) / 2));
+    --message-surface: color-mix(in srgb, var(--base-message), var(--base-accent) calc(var(--background-tint) / 2));
   }
 
   :root {

@@ -1,5 +1,6 @@
 // Appearance settings: the single list of keys, allowed values and defaults (ТЗ 6.2).
 // Pure functions only, so the rules can be unit-tested and mirrored by the server validator.
+import { readableOn } from './color'
 
 export const appearanceSchemaVersion = 1
 export const appearanceStorageKey = 'budz.appearance'
@@ -120,9 +121,9 @@ export interface RootAttributes {
 /** Every attribute and property the engine may set, so stale ones can be removed. */
 export const managedAttributes = [
   'theme', 'tint', 'preset', 'glow', 'radius', 'density', 'font', 'font-scale', 'code-font', 'message-style',
-  'chat-width', 'user-side', 'avatar', 'code-theme', 'message-actions', 'pattern', 'motion', 'accent-auto',
+  'chat-width', 'user-side', 'avatar', 'code-theme', 'message-actions', 'pattern', 'motion', 'accent-auto', 'background-tinted',
 ] as const
-export const managedVars = ['theme-tint', 'accent-2-custom', 'avatar-custom', 'background-tint'] as const
+export const managedVars = ['theme-tint', 'accent-2-custom', 'avatar-custom', 'avatar-custom-text', 'background-tint'] as const
 
 export function toRootAttributes(settings: AppearanceSettings): RootAttributes {
   const dataset: Record<string, string> = {
@@ -151,7 +152,11 @@ export function toRootAttributes(settings: AppearanceSettings): RootAttributes {
   }
   if (settings.accent2 && settings.accent2 !== 'auto') vars['accent-2-custom'] = settings.accent2
   if (settings.accent2 === 'auto') dataset['accent-auto'] = 'true'
-  if (settings.assistantAvatar === 'custom' && settings.assistantAvatarColor) vars['avatar-custom'] = settings.assistantAvatarColor
+  if (settings.backgroundTint !== defaultAppearance.backgroundTint) dataset['background-tinted'] = 'true'
+  if (settings.assistantAvatar === 'custom' && settings.assistantAvatarColor) {
+    vars['avatar-custom'] = settings.assistantAvatarColor
+    vars['avatar-custom-text'] = readableOn(settings.assistantAvatarColor, '#ffffff', '#000000')
+  }
   return { dataset, vars }
 }
 
