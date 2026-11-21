@@ -15,14 +15,14 @@ public sealed class WorkspacesController(ISender sender) : ApplicationController
     [HttpPost]
     public async Task<IActionResult> Create(WorkspaceBody body, CancellationToken ct)
     {
-        var result = await sender.Send(new SaveWorkspace(CurrentUserId, null, body.Name, body.Instructions, body.Materials), ct);
+        var result = await sender.Send(body.Save(CurrentUserId, null), ct);
         return result.IsSuccess ? StatusCode(StatusCodes.Status201Created, new { id = result.Value }) : Failure(result.Error!);
     }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, WorkspaceBody body, CancellationToken ct)
     {
-        var result = await sender.Send(new SaveWorkspace(CurrentUserId, id, body.Name, body.Instructions, body.Materials), ct);
+        var result = await sender.Send(body.Save(CurrentUserId, id), ct);
         return result.IsSuccess ? NoContent() : Failure(result.Error!);
     }
 
@@ -30,5 +30,16 @@ public sealed class WorkspacesController(ISender sender) : ApplicationController
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct) =>
         NoContentFrom(await sender.Send(new DeleteWorkspace(CurrentUserId, id), ct));
 
-    public sealed record WorkspaceBody(string Name, string? Instructions, string? Materials);
+    public sealed record WorkspaceBody(string Name, string? Instructions, string? Materials)
+    {
+        public string? Color { get; init { field = value; HasColor = true; } }
+        public string? Icon { get; init { field = value; HasIcon = true; } }
+        private bool HasColor { get; set; }
+        private bool HasIcon { get; set; }
+
+        internal SaveWorkspace Save(Guid userId, Guid? id) => new(userId, id, Name, Instructions, Materials)
+        {
+            Color = Color, Icon = Icon, UpdateColor = HasColor, UpdateIcon = HasIcon,
+        };
+    }
 }

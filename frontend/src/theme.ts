@@ -8,11 +8,11 @@ export const theme = computed(() => appearance.value.mode)
 export const themeTint = computed(() => appearance.value.accent)
 
 export function setTheme(value: Theme) {
-  setAppearance({ mode: value })
+  void setAppearance({ mode: value }).catch(() => { /* The local choice is still applied. */ })
 }
 
 export function setThemeTint(value: string | null, preview = false) {
   const accent = readHex(value)
   if (preview) previewAppearance({ accent })
-  else setAppearance({ accent })
+  else void setAppearance({ accent }).catch(() => { /* The local choice is still applied. */ })
 }

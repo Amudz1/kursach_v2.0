@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { api, explain } from '../api'
+import { entityColor, entityIcon } from '../appearance/entities'
+import EntityAppearanceFields from '../components/EntityAppearanceFields.vue'
+import UiAvatar from '../components/ui/UiAvatar.vue'
+import UiCard from '../components/ui/UiCard.vue'
 import type { Persona, PersonaInput } from '../types'
 
 const fresh = (): PersonaInput => ({ name: '', description: '', instructions: '', temperature: 0.5 })
@@ -21,7 +25,8 @@ async function load() {
 }
 function start(item?: Persona) {
   editing.value = item?.id ?? ''
-  form.value = item ? { name: item.name, description: item.description, instructions: item.instructions, temperature: item.temperature } : fresh()
+  form.value = item ? { name: item.name, description: item.description, instructions: item.instructions, temperature: item.temperature,
+    color: item.color, icon: item.icon } : fresh()
   status.value = ''
 }
 async function save() {
@@ -53,13 +58,15 @@ onMounted(load)
     <p v-if="loading" class="muted" role="status">Загружаем персоны…</p>
     <div class="profile-grid">
       <div class="stack">
-        <article v-for="persona in items" :key="persona.id" class="record">
-          <div><small>{{ persona.isCustom ? 'Ваша персона' : 'Системная персона' }}</small><h3>{{ persona.name }}</h3><p>{{ persona.description }}</p>
+        <UiCard v-for="persona in items" :key="persona.id" as="article" class="record" interactive spotlight :category="entityColor(persona.color, persona.id)">
+          <div><div class="actions"><UiAvatar :name="persona.name" :icon="entityIcon(persona.icon)" :color="entityColor(persona.color, persona.id)" decorative />
+              <div><small>{{ persona.isCustom ? 'Ваша персона' : 'Системная персона' }}</small><h3>{{ persona.name }}</h3></div></div>
+            <p>{{ persona.description }}</p>
             <details><summary>Инструкции</summary><p>{{ persona.instructions }}</p></details>
           </div>
           <div v-if="persona.isCustom" class="actions"><button class="text-button" @click="start(persona)">Изменить</button>
             <button class="text-button danger-text" @click="confirm(persona)">Удалить</button></div>
-        </article>
+        </UiCard>
         <p v-if="!loading && !items.length" class="muted">Пока нет доступных персон.</p>
       </div>
       <form class="fieldset stack" @submit.prevent="save">
@@ -68,6 +75,8 @@ onMounted(load)
         <label>Описание <input v-model="form.description" maxlength="500"></label>
         <label>Инструкции <textarea v-model="form.instructions" maxlength="4000" rows="5" required></textarea></label>
         <label>Температура <input v-model.number="form.temperature" type="number" min="0" max="2" step="0.05" required></label>
+        <EntityAppearanceFields v-model:color="form.color" v-model:icon="form.icon" :name="form.name"
+          :seed="editing || form.name" fallback-icon="sparkles" />
         <div class="actions"><button type="submit" class="primary" :disabled="saving">Сохранить персону</button>
           <button v-if="editing" type="button" class="secondary" @click="start()">Отмена</button></div>
       </form>

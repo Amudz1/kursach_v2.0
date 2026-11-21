@@ -1,4 +1,5 @@
 using AiAssistant.Application.Common;
+using AiAssistant.Application.Appearance;
 using AiAssistant.Application.Billing;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Domain;
@@ -7,9 +8,15 @@ using MediatR;
 
 namespace AiAssistant.Application.Personalization;
 
-public sealed record PersonaInput(string Name, string Description, string Instructions, double Temperature);
+public sealed record PersonaInput(string Name, string Description, string Instructions, double Temperature)
+{
+    public string? Color { get; init { field = value; HasColor = true; } }
+    public string? Icon { get; init { field = value; HasIcon = true; } }
+    internal bool HasColor { get; private set; }
+    internal bool HasIcon { get; private set; }
+}
 public sealed record PersonaView(Guid Id, string Name, string Description, string Instructions,
-    double Temperature, string? Model, bool IsCustom);
+    double Temperature, string? Model, bool IsCustom, string? Color = null, string? Icon = null);
 
 public sealed record ListPersonas(Guid UserId) : IRequest<Result<IReadOnlyList<PersonaView>>>;
 public sealed record SavePersona(Guid UserId, Guid? PersonaId, PersonaInput Input) : IRequest<Result<Guid>>;
@@ -24,7 +31,9 @@ public sealed class PersonaHandlers(IAssistantData data, PersonaAccess access, P
         value => value.RuleFor(persona => persona.Name).NotEmpty().MaximumLength(80),
         value => value.RuleFor(persona => persona.Description).NotNull().MaximumLength(500),
         value => value.RuleFor(persona => persona.Instructions).NotEmpty().MaximumLength(4000),
-        value => value.RuleFor(persona => persona.Temperature).InclusiveBetween(0, 2)
+        value => value.RuleFor(persona => persona.Temperature).InclusiveBetween(0, 2),
+        value => value.RuleFor(persona => persona.Color).Must(EntityAppearance.ValidColor).WithMessage("Выберите цвет из палитры."),
+        value => value.RuleFor(persona => persona.Icon).Must(EntityAppearance.ValidIcon).WithMessage("Выберите иконку из списка.")
     };
 
     public async Task<Result<IReadOnlyList<PersonaView>>> Handle(ListPersonas request, CancellationToken cancellationToken)
@@ -32,7 +41,8 @@ public sealed class PersonaHandlers(IAssistantData data, PersonaAccess access, P
         var personas = await cache.PersonasAsync(request.UserId, async () =>
             await data.ListAsync(access.Available(request.UserId).OrderBy(persona => persona.OwnerId != null)
             .ThenBy(persona => persona.Id).Select(persona => new PersonaView(persona.Id, persona.Name,
-                persona.Description, persona.SystemPrompt, persona.Temperature, persona.DefaultModel, persona.OwnerId != null)),
+                persona.Description, persona.SystemPrompt, persona.Temperature, persona.DefaultModel, persona.OwnerId != null,
+                persona.Color, persona.Icon)),
             cancellationToken));
         return Result<IReadOnlyList<PersonaView>>.Ok(personas);
     }
@@ -92,6 +102,8 @@ public sealed class PersonaHandlers(IAssistantData data, PersonaAccess access, P
         persona.Description = input.Description.Trim();
         persona.SystemPrompt = input.Instructions.Trim();
         persona.Temperature = input.Temperature;
+        if (input.HasColor) persona.Color = input.Color;
+        if (input.HasIcon) persona.Icon = input.Icon;
     }
 
     private static Result<T> NotFound<T>() =>

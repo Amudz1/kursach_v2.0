@@ -4,7 +4,6 @@ import { RouterLink, useRouter } from 'vue-router'
 import { api, explain } from '../api'
 import { useSession } from '../session'
 import StatisticsPanel from '../components/StatisticsPanel.vue'
-import ThemePicker from '../components/ThemePicker.vue'
 import type { Statistics } from '../types'
 
 const session = useSession()
@@ -62,7 +61,7 @@ async function remove() {
     <p v-if="success" class="notice success" role="status">{{ success }}</p>
     <div class="profile-grid">
       <div class="stack">
-        <ThemePicker />
+        <RouterLink to="/appearance" class="secondary self-start">Оформление</RouterLink>
         <form class="fieldset stack" @submit.prevent="updateEmail">
           <h2>Электронная почта</h2>
           <label>Новый email <input v-model="email.email" type="email" autocomplete="email" maxlength="254" required></label>

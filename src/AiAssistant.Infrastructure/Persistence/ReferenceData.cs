@@ -36,6 +36,8 @@ internal static class ReferenceData
         Description = description,
         SystemPrompt = prompt,
         Temperature = temperature,
+        Color = $"cat-{number}",
+        Icon = number switch { 2 => "graduation", 3 => "code", 4 => "globe", 5 => "pen", _ => "sparkles" },
         DefaultModel = TextModel
     };
 

@@ -9,5 +9,7 @@ public sealed class Persona
     public required string SystemPrompt { get; set; }
     public double Temperature { get; set; } = 0.5;
     public string? DefaultModel { get; set; }
+    public string? Color { get; set; }
+    public string? Icon { get; set; }
     public bool IsActive { get; set; } = true;
 }

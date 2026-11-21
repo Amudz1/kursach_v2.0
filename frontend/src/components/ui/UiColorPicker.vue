@@ -10,10 +10,11 @@ const props = withDefaults(defineProps<{
   swatches: readonly { value: string; label: string; css?: string }[]
   /** Adds a native colour input labelled «Свой цвет». */
   custom?: boolean
+  customLabel?: string
   /** An option for «no colour»/«as in the preset». */
   noneLabel?: string
   hideLabel?: boolean
-}>(), { custom: false })
+}>(), { custom: false, customLabel: 'Свой цвет' })
 
 const name = `color-${useId()}`
 const customId = `${name}-custom`
@@ -42,8 +43,8 @@ function pickCustom(event: Event) {
         </span>
       </label>
       <label v-if="custom" class="custom" :for="customId" :class="{ active: model && !isSwatch }">
-        <input :id="customId" type="color" :value="customValue" aria-label="Свой цвет" @input="pickCustom" @change="pickCustom" />
-        <span>Свой цвет</span>
+        <input :id="customId" type="color" :value="customValue" :aria-label="customLabel" @input="pickCustom" @change="pickCustom" />
+        <span>{{ customLabel }}</span>
       </label>
     </div>
   </fieldset>

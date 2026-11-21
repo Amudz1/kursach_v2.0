@@ -21,6 +21,7 @@ const router = createRouter({
     { path: '/personas', name: 'personas', component: () => import('./pages/PersonasPage.vue') },
     { path: '/plans', name: 'plans', component: () => import('./pages/PlansPage.vue') },
     { path: '/profile', name: 'profile', component: () => import('./pages/ProfilePage.vue') },
+    { path: '/appearance', name: 'appearance', component: () => import('./pages/AppearancePage.vue') },
     { path: '/admin', name: 'admin', component: () => import('./pages/AdminPage.vue') },
     // The component showcase exists only in development builds.
     ...(import.meta.env.DEV ? [{ path: '/dev/ui', name: 'dev-ui', component: () => import('./pages/UiShowcasePage.vue') }] : []),

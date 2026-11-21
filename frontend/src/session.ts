@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { ApiError, api, useSessionInApi } from './api'
+import { clearAppearanceAccount, syncAppearanceAccount } from './appearance'
 import type { Account } from './types'
 
 type Grant = { accessToken: string; expiresAt: string }
@@ -19,6 +20,7 @@ export const useSession = defineStore('session', () => {
   }
 
   function clear() {
+    clearAppearanceAccount()
     access.value = null
     account.value = null
     expires = 0
@@ -46,7 +48,9 @@ export const useSession = defineStore('session', () => {
   useSessionInApi(() => access.value, refresh)
 
   async function reload() {
-    account.value = await api<Account>('/me')
+    const next = await api<Account>('/me')
+    if (next.id !== account.value?.id) await syncAppearanceAccount(next.id)
+    account.value = next
   }
 
   function ready() {

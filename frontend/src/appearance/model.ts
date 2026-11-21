@@ -67,6 +67,21 @@ export const defaultAppearance: Readonly<AppearanceSettings> = Object.freeze({
   motion: 'full',
 })
 
+export const presets: Record<PresetId, { label: string; options?: Partial<AppearanceSettings> }> = {
+  classic: { label: 'Классическая' },
+  ultramarine: { label: 'Ультрамарин' },
+  graphite: { label: 'Графит', options: { mode: 'dark' } },
+  midnight: { label: 'Полночь', options: { mode: 'dark', glow: 'bright' } },
+  mint: { label: 'Мята', options: { mode: 'light' } },
+  sunset: { label: 'Закат' },
+  terminal: { label: 'Терминал', options: { mode: 'dark', codeFont: 'jetbrains' } },
+  contrast: { label: 'Высокий контраст', options: { glow: 'off' } },
+}
+
+export function presetSettings(preset: PresetId): AppearanceSettings {
+  return { ...defaultAppearance, preset, ...presets[preset].options }
+}
+
 const hexPattern = /^#[0-9a-f]{6}$/i
 
 export function readHex(value: unknown): HexColor | null {
@@ -105,7 +120,7 @@ export interface RootAttributes {
 /** Every attribute and property the engine may set, so stale ones can be removed. */
 export const managedAttributes = [
   'theme', 'tint', 'preset', 'glow', 'radius', 'density', 'font', 'font-scale', 'code-font', 'message-style',
-  'chat-width', 'user-side', 'avatar', 'code-theme', 'message-actions', 'pattern', 'motion',
+  'chat-width', 'user-side', 'avatar', 'code-theme', 'message-actions', 'pattern', 'motion', 'accent-auto',
 ] as const
 export const managedVars = ['theme-tint', 'accent-2-custom', 'avatar-custom', 'background-tint'] as const
 
@@ -135,6 +150,7 @@ export function toRootAttributes(settings: AppearanceSettings): RootAttributes {
     vars['theme-tint'] = settings.accent
   }
   if (settings.accent2 && settings.accent2 !== 'auto') vars['accent-2-custom'] = settings.accent2
+  if (settings.accent2 === 'auto') dataset['accent-auto'] = 'true'
   if (settings.assistantAvatar === 'custom' && settings.assistantAvatarColor) vars['avatar-custom'] = settings.assistantAvatarColor
   return { dataset, vars }
 }
@@ -145,6 +161,7 @@ export interface AppearanceCache {
   settings: AppearanceSettings
   /** Precomputed attributes the inline script in index.html applies before Vue mounts. */
   root: RootAttributes
+  owner?: string
 }
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
@@ -153,13 +170,13 @@ export function createCache(settings: AppearanceSettings, now = new Date()): App
   return { version: appearanceSchemaVersion, updatedAt: now.toISOString(), settings, root: toRootAttributes(settings) }
 }
 
-export function readCache(raw: string | null): { settings: AppearanceSettings; updatedAt: string | null } | null {
+export function readCache(raw: string | null): { settings: AppearanceSettings; updatedAt: string | null; owner?: string } | null {
   if (!raw) return null
   try {
     const value = JSON.parse(raw) as Partial<AppearanceCache> | null
     if (!value || typeof value !== 'object') return null
     const updatedAt = typeof value.updatedAt === 'string' && !Number.isNaN(Date.parse(value.updatedAt)) ? value.updatedAt : null
-    return { settings: normalizeAppearance(value.settings), updatedAt }
+    return { settings: normalizeAppearance(value.settings), updatedAt, owner: typeof value.owner === 'string' ? value.owner : undefined }
   } catch {
     return null
   }
@@ -194,13 +211,13 @@ export function loadAppearance(storage: StorageLike, now = new Date()): Appearan
   }
 }
 
-function removeLegacy(storage: StorageLike) {
+export function removeLegacy(storage: StorageLike) {
   storage.removeItem(legacyThemeKey)
   storage.removeItem(legacyTintKey)
 }
 
-export function saveAppearance(storage: StorageLike, settings: AppearanceSettings, now = new Date()) {
+export function saveAppearance(storage: StorageLike, settings: AppearanceSettings, now = new Date(), owner?: string) {
   try {
-    storage.setItem(appearanceStorageKey, JSON.stringify(createCache(settings, now)))
+    storage.setItem(appearanceStorageKey, JSON.stringify({ ...createCache(settings, now), owner }))
   } catch { /* Keep the choice for this page. */ }
 }

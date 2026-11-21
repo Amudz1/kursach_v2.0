@@ -47,8 +47,9 @@ const balanceDescription = computed(() => remaining.value === null || limit.valu
   ? 'Дневной бюджет без ограничений'
   : `Осталось ${balanceText.value} из ${numberFormat.format(limit.value)} токенов на сегодня`)
 
-function toggleTheme() {
-  setAppearance({ mode: dark.value ? 'light' : 'dark' })
+async function toggleTheme() {
+  try { await setAppearance({ mode: dark.value ? 'light' : 'dark' }) }
+  catch { toast.warning('Тема изменена на этом устройстве. Сохранение в аккаунте недоступно.') }
 }
 async function logout() {
   drawer.value = false

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { ArrowDown, ArrowUp, BookOpen, Check, ChevronDown, Code, Copy, Ellipsis, FileImage, FileText, Folder, Lightbulb, ListChecks, PanelLeft, Paperclip, PenLine, Pencil, Pin, PinOff, Plus, RotateCcw, Search, Square, ThumbsDown, ThumbsUp, X } from 'lucide-vue-next'
-import { categoryFor, categoryColors } from '../appearance/entities'
+import { ArrowDown, ArrowUp, BookOpen, Check, ChevronDown, Code, Copy, Ellipsis, FileImage, FileText, Lightbulb, ListChecks, PanelLeft, Paperclip, PenLine, Pencil, Pin, PinOff, Plus, RotateCcw, Search, Square, ThumbsDown, ThumbsUp, X } from 'lucide-vue-next'
+import { categoryColors, entityColor, entityIcon } from '../appearance/entities'
+import { appearance } from '../appearance'
+import { api } from '../api'
 import { useSession } from '../session'
 import ChatMarkdown from '../components/ChatMarkdown.vue'
 import ChatRulesPanel from '../components/ChatRulesPanel.vue'
@@ -12,7 +14,7 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiChip from '../components/ui/UiChip.vue'
 import UiIconButton from '../components/ui/UiIconButton.vue'
 import { useChat } from '../use-chat'
-import type { Chat, Message } from '../types'
+import type { Chat, Message, Persona } from '../types'
 
 const {
   chats, messages, selected, selectedId, model, currentPlan, search, nextBefore,
@@ -45,6 +47,13 @@ const projectEditor = ref<InstanceType<typeof ProjectEditor>>()
 const temporary = computed(() => Boolean(selected.value?.expiresAt))
 const projectNames = computed(() => new Map(workspaces.value.map((project) => [project.id, project.name])))
 const session = useSession()
+const personas = ref<Persona[]>([])
+const personasById = computed(() => new Map(personas.value.map((persona) => [persona.id, persona])))
+const activePersona = computed(() => selected.value?.personaId ? personasById.value.get(selected.value.personaId) : undefined)
+const assistantIcon = computed(() => appearance.value.assistantAvatar === 'persona' ? entityIcon(activePersona.value?.icon) : undefined)
+function personaColor(id: string | null | undefined) {
+  return entityColor(id ? personasById.value.get(id)?.color : undefined, id ?? 'budz')
+}
 const numberFormat = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 })
 const projectsOpen = ref(true)
 const showLatest = ref(false)
@@ -207,6 +216,7 @@ let sizeObserver: ResizeObserver | undefined
 watch(draft, resizeComposer, { flush: 'post' })
 watch(selectedId, () => { showLatest.value = false })
 onMounted(() => {
+  void api<Persona[]>('/personas').then((items) => { personas.value = items }).catch(() => { /* Use the fallback colors. */ })
   compactLayout.addEventListener('change', resizeLayout)
   resizeComposer()
   if (!composer.value) return
@@ -238,7 +248,8 @@ onUnmounted(() => {
         <nav v-if="workspaces.length" v-show="projectsOpen" id="history-project-list" class="history-project-list" aria-label="Список проектов">
           <RouterLink v-for="project in workspaces" :key="project.id" :to="{ path: '/chats', query: { workspace: project.id } }"
             :aria-current="workspaceId === project.id ? 'location' : undefined" @click="closeMobileHistory">
-            <Folder class="project-icon" :style="{ color: `var(--${categoryFor(project.id)})` }" aria-hidden="true" /><span>{{ project.name }}</span>
+            <component :is="entityIcon(project.icon, 'folder')" class="project-icon"
+              :style="{ color: `var(--${entityColor(project.color, project.id)})` }" aria-hidden="true" /><span>{{ project.name }}</span>
           </RouterLink>
         </nav>
       </section>
@@ -253,7 +264,7 @@ onUnmounted(() => {
           <h3>{{ group.title }}</h3>
           <div v-for="chat in group.items" :key="chat.id" class="thread-row">
             <RouterLink :to="chatRoute(chat)" @click="closeMobileHistory">
-              <span class="persona-dot" :style="{ backgroundColor: `var(--${categoryFor(chat.personaId ?? 'budz')})` }" aria-hidden="true"></span>
+              <span class="persona-dot" :style="{ backgroundColor: `var(--${personaColor(chat.personaId)})` }" aria-hidden="true"></span>
               <span><span>{{ chat.title }}</span><small v-if="chat.workspaceId && projectNames.has(chat.workspaceId)">{{ projectNames.get(chat.workspaceId) }}</small></span>
             </RouterLink>
             <UiIconButton class="thread-pin" :icon="chat.isPinned ? PinOff : Pin" :label="chat.isPinned ? 'Открепить диалог' : 'Закрепить диалог'"
@@ -338,7 +349,9 @@ onUnmounted(() => {
         </div>
         <article v-for="item in messages" :key="item.id" class="message" :class="item.role">
           <div class="message-meta">
-            <UiAvatar :name="item.role === 'user' ? session.account?.username ?? 'Вы' : 'Budz'" :brand="item.role === 'assistant'" size="sm" decorative />
+            <UiAvatar v-if="item.role === 'user'" :name="session.account?.username ?? 'Вы'" size="sm" decorative />
+            <UiAvatar v-else :name="activePersona?.name ?? 'Budz'" :brand="appearance.assistantAvatar !== 'persona'"
+              :icon="assistantIcon" :color="personaColor(activePersona?.id)" size="sm" decorative />
             <strong>{{ item.role === 'user' ? 'Вы' : 'Budz' }}</strong>
             <time :datetime="item.createdAt">{{ time(item.createdAt) }}</time>
           </div>

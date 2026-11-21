@@ -3,6 +3,8 @@
 
 @import './tokens.css';
 @import './themes/classic.css';
+@import './themes/presets.css';
+@import './appearance.css';
 @import './base.css';
 @import './components.css';
 @import './utilities.css';

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { api, explain } from '../api'
+import EntityAppearanceFields from './EntityAppearanceFields.vue'
 import type { Workspace } from '../types'
 
 const emit = defineEmits<{ saved: [id: string, created: boolean]; removed: [id: string] }>()
@@ -76,6 +77,8 @@ defineExpose({ show })
         <label>Материалы проекта <textarea v-model="draft.materials" rows="5" maxlength="10000"
           placeholder="Вставьте текст, который Budz сможет учитывать в диалогах проекта"></textarea></label>
         <label class="help">Заменить материалы из TXT или Markdown <input type="file" accept=".txt,.md" :disabled="reading || busy" @change="attachMaterial"></label>
+        <EntityAppearanceFields v-model:color="draft.color" v-model:icon="draft.icon" :name="draft.name"
+          :seed="draft.id || draft.name" fallback-icon="folder" />
       </template>
       <p v-if="error" class="notice danger" role="alert">{{ error }}</p>
       <div class="actions">

@@ -44,9 +44,10 @@ export type TaskMode = 'general' | 'code' | 'learn' | 'write' | 'plan'
 export type TaskPreference = { task: TaskMode; length: string | null; format: string | null; instructions: string | null }
 export type ResponseDecision = { task: TaskMode; length: string; format: string; fromHistory: boolean; rule: string | null; instructions: string | null }
 
-export type PersonaInput = { name: string; description: string; instructions: string; temperature: number }
+type EntityAppearance = { color?: string | null; icon?: string | null }
+export type PersonaInput = { name: string; description: string; instructions: string; temperature: number } & EntityAppearance
 export type Persona = PersonaInput & { id: string; model: string | null; isCustom: boolean }
-export type Workspace = { id: string; name: string; instructions: string; materials: string }
+export type Workspace = { id: string; name: string; instructions: string; materials: string } & EntityAppearance
 export type Chat = { id: string; title: string; personaId: string | null; isPinned: boolean; lastMessageAt: string; workspaceId: string | null; expiresAt: string | null }
 export type ChatRules = {
   language: string; tone: string; level: string; length: string; format: string; adaptToTask: boolean;
