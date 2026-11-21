@@ -1,0 +1,53 @@
+@layer tokens {
+  :root {
+    --studio-ink: #152338;
+    --studio-amber: #f0b66a;
+    --studio-sidebar: light-dark(var(--studio-ink), #101b2d);
+    --studio-sidebar-ink: #f4f0e8;
+    --studio-sidebar-muted: #b8c2d0;
+    --studio-sidebar-rule: light-dark(#405066, #35445a);
+    --studio-sidebar-fill: light-dark(#273951, #22324a);
+    --studio-sidebar-mark: var(--studio-amber);
+    --studio-bookmark: light-dark(#a15e19, var(--studio-amber));
+  }
+
+  :root[data-preset="studio"] {
+    --base-paper: light-dark(#f7f3ea, #18263a);
+    --base-sheet: light-dark(#fffcf6, #1e2e44);
+    --base-input: var(--base-sheet);
+    --base-message: var(--base-paper);
+    --base-inset: light-dark(#efe7d9, #23344c);
+    --base-inset-hover: light-dark(#f0e1ca, #30415a);
+    --base-pale: var(--base-inset);
+    --base-rule: light-dark(#dcd0bd, #41536b);
+    --dark-rule: light-dark(#9a8264, #7a8da8);
+    --base-accent: light-dark(#864c16, var(--studio-amber));
+    --base-accent-dark: var(--base-accent);
+    --base-primary-fill: var(--base-accent);
+    --base-contrast-fill: light-dark(#734010, #ffd198);
+    --base-feature: var(--studio-sidebar);
+    --base-focus: light-dark(#9a5617, var(--studio-amber));
+    --ink: light-dark(#243248, #f1ede4);
+    --muted: light-dark(#586171, #bac3cf);
+    --on-fill: light-dark(#fffaf0, #18263a);
+    --avatar-category-text: #fffaf0;
+    --feature-ink: var(--studio-sidebar-muted);
+    --brand-fill: var(--studio-sidebar);
+    --brand-accent: light-dark(#315989, #a1c3f2);
+    --accent-2: var(--accent-2-custom, var(--studio-bookmark));
+  }
+
+  :root[data-preset="studio"][data-accent-auto] {
+    --accent-2: oklch(from var(--accent) l c calc(h + 150));
+  }
+
+  :root[data-preset="contrast"] {
+    --studio-sidebar: light-dark(#ffffff, #000000);
+    --studio-sidebar-ink: light-dark(#000000, #ffffff);
+    --studio-sidebar-muted: light-dark(#303030, #dedede);
+    --studio-sidebar-fill: light-dark(#eeeeee, #222222);
+    --studio-sidebar-rule: var(--base-rule);
+    --studio-sidebar-mark: var(--accent);
+    --studio-bookmark: var(--accent);
+  }
+}

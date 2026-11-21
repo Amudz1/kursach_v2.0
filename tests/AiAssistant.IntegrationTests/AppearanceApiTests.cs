@@ -18,7 +18,7 @@ public sealed class AppearanceApiTests(ApiFixture fixture) : IClassFixture<ApiFi
         await RegisterAsync(owner);
         await RegisterAsync(other);
         using var defaults = await owner.GetAsync(endpoint);
-        Assert.Equal("classic", (await BodyAsync(defaults)).GetProperty("preset").GetString());
+        Assert.Equal("studio", (await BodyAsync(defaults)).GetProperty("preset").GetString());
 
         using var invalid = await owner.PutAsJsonAsync(endpoint, new
         {
@@ -40,14 +40,16 @@ public sealed class AppearanceApiTests(ApiFixture fixture) : IClassFixture<ApiFi
         Assert.Equal("#66aaff", appearance.GetProperty("settings").GetProperty("accent").GetString());
         Assert.False(appearance.GetProperty("settings").TryGetProperty("glow", out _));
         using var privateResult = await other.GetAsync(endpoint);
-        Assert.Equal("classic", (await BodyAsync(privateResult)).GetProperty("preset").GetString());
+        Assert.Equal("studio", (await BodyAsync(privateResult)).GetProperty("preset").GetString());
 
         using var export = await owner.GetAsync("/api/v1/data/export?format=json&includeAccount=true");
         Assert.Equal("midnight", (await BodyAsync(export)).GetProperty("appearance").GetProperty("preset").GetString());
         using var delete = await owner.DeleteAsync(endpoint);
         Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
         using var reset = await owner.GetAsync(endpoint);
-        Assert.Equal(JsonValueKind.Null, (await BodyAsync(reset)).GetProperty("updatedAt").ValueKind);
+        var legacyDefaults = await BodyAsync(reset);
+        Assert.Equal("classic", legacyDefaults.GetProperty("preset").GetString());
+        Assert.Equal(JsonValueKind.Null, legacyDefaults.GetProperty("updatedAt").ValueKind);
     }
 
     [Fact]

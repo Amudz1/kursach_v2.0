@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { api, explain } from '../api'
 import { Upload } from 'lucide-vue-next'
 import UiProgress from '../components/ui/UiProgress.vue'
+import UiSegmented from '../components/ui/UiSegmented.vue'
 import { exportConversations } from '../data-transfer'
 import type { Workspace } from '../types'
 
@@ -13,6 +14,8 @@ const route = useRoute()
 const router = useRouter()
 const startingWorkspace = typeof route.query.workspace === 'string' ? route.query.workspace : ''
 const chatId = typeof route.query.chat === 'string' ? route.query.chat : ''
+const transferModes = [{ value: 'import', label: 'Импорт' }, { value: 'export', label: 'Экспорт' }] as const
+const transferMode = ref<'import' | 'export'>(chatId ? 'export' : 'import')
 const spaces = ref<Workspace[]>([])
 const target = ref(startingWorkspace)
 const exportScope = ref(chatId ? 'chat' : startingWorkspace)
@@ -109,8 +112,9 @@ onMounted(load)
   <section class="page">
     <header class="page-heading"><h1>Управление данными</h1><p>Перенесите переписку в Budz или скачайте её для другого сервиса.</p></header>
     <p v-if="listError" class="notice danger" role="alert">{{ listError }} <button class="text-button" @click="load">Повторить</button></p>
+    <UiSegmented v-model="transferMode" :options="transferModes" class="data-modes" label="Операция с данными" hide-label />
     <div class="data-grid">
-      <form class="fieldset stack" @submit.prevent="importFile">
+      <form v-show="transferMode === 'import'" class="fieldset stack" @submit.prevent="importFile">
         <h2>Импорт диалогов</h2>
         <p class="help">Распакуйте выгрузку ChatGPT или Claude и выберите JSON с перепиской. Поддерживаются также JSON-выгрузки Budz.</p>
         <label>Куда импортировать <select v-model="target" aria-label="Куда импортировать" :disabled="importing">
@@ -133,7 +137,7 @@ onMounted(load)
           <p class="help">Подойдёт JSON с массивом диалогов. Для каждого диалога задайте название <code>title</code> и массив <code>messages</code> с полями автора <code>role</code> (<code>user</code> или <code>assistant</code>) и текста <code>content</code>.</p>
         </details>
       </form>
-      <section class="fieldset stack" aria-labelledby="export-title">
+      <section v-show="transferMode === 'export'" class="fieldset stack" aria-labelledby="export-title">
         <h2 id="export-title">Экспорт данных</h2>
         <label>Что выгрузить <select v-model="exportScope" aria-label="Что выгрузить" :disabled="downloading">
           <option v-if="chatId" value="chat">Текущий диалог</option>
@@ -169,8 +173,8 @@ onMounted(load)
 .drop-zone > span:first-child { display: flex; align-items: center; gap: var(--space-2); }
 .drop-zone svg { width: 18px; height: 18px; color: var(--accent); }
 .drop-zone:focus-within, .drop-zone.drop-active { border-color: var(--accent); background: var(--surface-3); box-shadow: var(--glow-sm); }
-.data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 1rem; }
+.data-modes { margin-bottom: var(--space-3); }
+.data-grid, .data-privacy { max-width: 740px; }
 details > p { padding-top: .55rem; }
 .data-privacy { margin-top: 1rem; }
-@media (max-width: 760px) { .data-grid { grid-template-columns: 1fr; } }
 </style>

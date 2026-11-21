@@ -117,7 +117,7 @@ async function readContext() {
   <section class="page">
     <header class="page-heading"><h1>Администрирование</h1><p>Статистика и настройки системы.</p></header>
     <div class="actions admin-nav" aria-label="Разделы администрирования">
-      <button v-for="(label, key) in tabs" :key="key" :class="tab === key ? 'primary' : 'secondary'"
+      <button v-for="(label, key) in tabs" :key="key" class="secondary"
         :aria-pressed="tab === key" @click="tab = key">{{ label }}</button>
     </div>
     <p v-if="error" class="notice danger" role="alert">{{ error }} <button v-if="tab !== 'context'" class="text-button" @click="load">Повторить</button></p>

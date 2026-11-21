@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-preset="studio" data-font="plex">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -24,6 +24,10 @@
           const theme = localStorage.getItem('budz.theme')
           if (theme === 'light' || theme === 'dark') root.dataset.theme = theme
           const tint = localStorage.getItem('budz.theme-tint')
+          if (theme === 'light' || theme === 'dark' || theme === 'system' || (tint && hex.test(tint))) {
+            root.dataset.preset = 'classic'
+            root.dataset.font = 'system'
+          }
           if (tint && hex.test(tint)) {
             root.dataset.tint = tint.toLowerCase()
             root.style.setProperty('--theme-tint', tint.toLowerCase())

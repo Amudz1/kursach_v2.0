@@ -28,6 +28,7 @@ public sealed class SessionHandlers(
         user.PasswordHash = passwords.Hash(user, request.Password);
         data.Add(user);
         data.Add(new PersonalizationProfile { UserId = user.Id, UpdatedAt = now });
+        data.Add(new AppearanceSettings { UserId = user.Id, Preset = AppearanceSettings.RegistrationPreset, UpdatedAt = now });
 
         try
         {

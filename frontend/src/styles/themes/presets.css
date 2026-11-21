@@ -1,5 +1,5 @@
 @layer tokens {
-  :root:not([data-preset="classic"])[data-preset] {
+  :root:not([data-preset="classic"], [data-preset="studio"])[data-preset] {
     --base-input: var(--base-sheet);
     --base-message: var(--base-sheet);
     --base-accent-dark: var(--base-accent);

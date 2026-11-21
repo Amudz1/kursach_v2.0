@@ -1,12 +1,13 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using AiAssistant.Domain;
 
 namespace AiAssistant.Application.Appearance;
 
 public static partial class AppearanceSettingsValidator
 {
-    private static readonly HashSet<string> Presets = ["classic", "ultramarine", "graphite", "midnight", "mint", "sunset", "terminal", "contrast"];
+    private static readonly HashSet<string> Presets = [AppearanceSettings.RegistrationPreset, "classic", "ultramarine", "graphite", "midnight", "mint", "sunset", "terminal", "contrast"];
     private static readonly HashSet<string> Modes = ["system", "light", "dark"];
     private static readonly Dictionary<string, string[]> Options = new(StringComparer.Ordinal)
     {
@@ -62,6 +63,9 @@ public static partial class AppearanceSettingsValidator
                     ("midnight", "glow") => "bright",
                     ("contrast", "glow") => "off",
                     ("terminal", "codeFont") => "jetbrains",
+                    (AppearanceSettings.RegistrationPreset, "font") => "plex",
+                    (AppearanceSettings.RegistrationPreset, "messageStyle") => "flat",
+                    (AppearanceSettings.RegistrationPreset, "userSide") => "right",
                     _ => options[0],
                 };
                 if (value.GetString() == defaultValue) continue;

@@ -2,7 +2,7 @@ import { readonly, ref } from 'vue'
 import { api } from '../api'
 import { applyAppearance } from './apply'
 import {
-  appearanceSchemaVersion, appearanceStorageKey, defaultAppearance, legacyThemeKey, legacyTintKey, migrateLegacy,
+  appearanceSchemaVersion, appearanceStorageKey, legacyThemeKey, legacyTintKey, migrateLegacy,
   normalizeAppearance, presetSettings, readCache, removeLegacy, saveAppearance, type AppearanceSettings,
 } from './model'
 
@@ -34,8 +34,8 @@ function loadSaved() {
     const store = storage()
     return readCache(store?.getItem(appearanceStorageKey) ?? null)?.settings
       ?? migrateLegacy(store?.getItem(legacyThemeKey) ?? null, store?.getItem(legacyTintKey) ?? null)
-      ?? presetSettings('classic')
-  } catch { return presetSettings('classic') }
+      ?? presetSettings('studio')
+  } catch { return presetSettings('studio') }
 }
 
 export const appearance = readonly(current)
@@ -130,7 +130,7 @@ export function clearAppearanceAccount() {
     const store = storage()
     if (readCache(store?.getItem(appearanceStorageKey) ?? null)?.owner === previous) store?.removeItem(appearanceStorageKey)
   } catch { /* The browser may forbid storage. */ }
-  saved.value = current.value = presetSettings('classic')
+  saved.value = current.value = presetSettings('studio')
   applyAppearance(current.value)
 }
 
@@ -158,7 +158,7 @@ window.addEventListener('storage', (event) => {
   if (event.key !== appearanceStorageKey && event.key !== null) return
   const cache = readCache(event.newValue)
   if (cache?.owner !== owner) return
-  const next = cache?.settings ?? normalizeAppearance(defaultAppearance)
+  const next = cache?.settings ?? presetSettings('studio')
   saved.value = next
   current.value = next
   applyAppearance(next)

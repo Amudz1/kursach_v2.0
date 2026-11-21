@@ -38,7 +38,7 @@ onMounted(load)
           <h2>{{ project.name }}</h2>
         </div>
         <div class="actions">
-          <RouterLink :to="{ path: '/chats', query: { workspace: project.id } }" class="primary">Открыть проект</RouterLink>
+          <RouterLink :to="{ path: '/chats', query: { workspace: project.id } }" class="secondary">Открыть проект</RouterLink>
           <button type="button" class="secondary" @click="editor?.show(project)">Настройки проекта</button>
           <RouterLink :to="{ path: '/data', query: { workspace: project.id } }" class="text-button">Перенос данных</RouterLink>
         </div>

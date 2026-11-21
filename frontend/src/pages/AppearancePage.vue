@@ -231,6 +231,7 @@ async function importTheme(event: Event) {
 .preset-sample i { display: block; width: 45%; height: 3px; border-radius: var(--radius-full); background: var(--sample-line, var(--accent)); }
 .preset-sample i:nth-child(2) { width: 70%; }
 .preset-sample i:nth-child(3) { width: 30%; }
+[data-choice="studio"] { --sample-bg: var(--studio-ink); --sample-line: var(--studio-amber); }
 [data-choice="ultramarine"] { --sample-bg: var(--c-brand-100); --sample-line: var(--c-brand-600); }
 [data-choice="graphite"] { --sample-bg: var(--c-ink-800); --sample-line: yellowgreen; }
 [data-choice="midnight"] { --sample-bg: var(--c-brand-900); --sample-line: lightblue; }

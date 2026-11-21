@@ -2,6 +2,7 @@ namespace AiAssistant.Domain;
 
 public sealed class AppearanceSettings
 {
+    public const string RegistrationPreset = "studio";
     public required Guid UserId { get; init; }
     public short SchemaVersion { get; set; } = 1;
     public string Preset { get; set; } = "classic";

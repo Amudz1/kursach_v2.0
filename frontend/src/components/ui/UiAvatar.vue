@@ -29,7 +29,7 @@ const initial = computed(() => props.name.trim().slice(0, 1).toUpperCase() || '?
 <style scoped>
 .ui-avatar {
   display: inline-grid; place-items: center; flex: 0 0 auto; width: 32px; height: 32px; border-radius: var(--radius-full);
-  color: var(--on-fill); background-color: var(--avatar-color); font-weight: 750; font-size: .85rem; line-height: 1;
+  color: var(--avatar-category-text, var(--on-fill)); background-color: var(--avatar-color); font-weight: 750; font-size: .85rem; line-height: 1;
   box-shadow: inset 0 0 0 1px color-mix(in oklab, white 18%, transparent); user-select: none;
 }
 .xs { width: 20px; height: 20px; font-size: .62rem; }

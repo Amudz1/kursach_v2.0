@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { api, explain } from '../api'
 import { Brain, Plus, Sparkles } from 'lucide-vue-next'
@@ -19,6 +19,9 @@ const toast = useToast()
 const session = useSession()
 const loading = ref(true)
 const editing = ref('')
+const editorOpen = ref(false)
+const contentInput = ref<HTMLTextAreaElement>()
+const addButton = ref<HTMLButtonElement>()
 const content = ref('')
 const pendingDelete = ref<Memory>()
 const dialog = ref<HTMLDialogElement>()
@@ -32,8 +35,16 @@ async function load() {
   catch (reason) { error.value = explain(reason) }
   finally { loading.value = false }
 }
-function edit(item: Memory) { editing.value = item.id; content.value = item.content }
-function cancel() { editing.value = ''; content.value = '' }
+async function edit(item?: Memory) {
+  editing.value = item?.id ?? ''; content.value = item?.content ?? ''; editorOpen.value = true
+  await nextTick()
+  contentInput.value?.focus()
+}
+async function cancel() {
+  editing.value = ''; content.value = ''; editorOpen.value = false
+  await nextTick()
+  addButton.value?.focus()
+}
 async function save() {
   if (!content.value.trim()) return
   error.value = ''; saving.value = true
@@ -42,7 +53,7 @@ async function save() {
     await api(current ? `/me/memories/${current.id}` : '/me/memories', {
       method: current ? 'PUT' : 'POST', body: { content: content.value, isEnabled: current?.isEnabled ?? true },
     })
-    cancel(); await load(); toast.success('Факт сохранён.')
+    await cancel(); await load(); toast.success('Факт сохранён.')
   } catch (reason) { error.value = explain(reason) }
   finally { saving.value = false }
 }
@@ -78,7 +89,10 @@ onMounted(load)
 
 <template>
   <section class="page">
-    <header class="page-heading"><h1>Память</h1><p>Факты, которые Budz может учитывать в новых диалогах.</p></header>
+    <header class="page-heading actions page-action-heading">
+      <div><h1>Память</h1><p>Факты, которые Budz может учитывать в новых диалогах.</p></div>
+      <button v-if="profile && !editorOpen" ref="addButton" type="button" class="primary" @click="edit()">Добавить факт</button>
+    </header>
     <p v-if="error" class="notice danger" role="alert">{{ error }} <button v-if="!profile" class="text-button" @click="load">Повторить</button></p>
     <div v-if="loading" role="status"><span class="sr-only">Загружаем память…</span><UiSkeleton :lines="3" /></div>
     <div v-if="profile" class="profile-grid">
@@ -95,11 +109,11 @@ onMounted(load)
         </UiCard>
         <UiEmptyState v-if="!loading && !items.length" :icon="Brain" title="Фактов пока нет." />
       </div>
-      <form class="fieldset stack" @submit.prevent="save">
+      <form v-if="editorOpen" class="fieldset stack form-editor" @submit.prevent="save">
         <h2>{{ editing ? 'Редактирование факта' : 'Добавить факт' }}</h2>
-        <label>Что запомнить <textarea v-model="content" rows="4" maxlength="500" required placeholder="Например, я изучаю C#"></textarea></label>
+        <label>Что запомнить <textarea ref="contentInput" v-model="content" rows="4" maxlength="500" required placeholder="Например, я изучаю C#"></textarea></label>
         <div class="actions"><button class="primary" :disabled="saving" type="submit">Сохранить факт</button>
-          <button v-if="editing" type="button" class="secondary" @click="cancel">Отмена</button></div>
+          <button type="button" class="secondary" @click="cancel">Отмена</button></div>
         <RouterLink class="text-button" to="/personalization">Другие настройки ↗</RouterLink>
       </form>
     </div>

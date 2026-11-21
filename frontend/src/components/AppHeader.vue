@@ -85,14 +85,14 @@ watch(() => route.fullPath, async () => {
 </script>
 
 <template>
-  <header class="topbar">
+  <header class="topbar" :class="{ 'chat-topbar': route.name === 'chat' }">
     <div class="header-brand">
       <button ref="menuButton" type="button" class="menu-toggle" aria-label="Открыть меню"
         :aria-expanded="drawer" :aria-controls="drawerId" @click="drawer = !drawer">
         <span class="menu-glyph" aria-hidden="true"><i></i><i></i><i></i></span>
       </button>
       <RouterLink class="brand" to="/chats" aria-label="AI Helper Budz, диалоги">
-        <span class="brand-mark" aria-hidden="true">b<span>.</span></span><span>budz<span class="brand-dot">.</span></span>
+        <span aria-hidden="true">budz<span class="brand-dot">.</span></span>
       </RouterLink>
     </div>
     <nav ref="navigation" class="top-navigation" aria-label="Основная навигация">
@@ -148,9 +148,10 @@ watch(() => route.fullPath, async () => {
 
 <style scoped>
 .header-brand, .header-account { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-.topbar .brand-mark { background: linear-gradient(140deg, var(--brand-fill), color-mix(in oklab, var(--brand-fill), var(--btn-primary-bg) 65%)); }
-.brand-mark span { display: inline-block; transition: transform var(--motion-base) var(--ease-spring); }
-.brand:hover .brand-mark span { transform: rotate(12deg) translateY(-2px); }
+.chat-topbar { background: var(--surface-0); }
+.topbar .brand { font-size: 2.45rem; }
+.brand-dot { display: inline-block; color: var(--studio-bookmark); transition: transform var(--motion-base) var(--ease-spring); }
+.brand:hover .brand-dot { transform: translateY(-2px); }
 .top-navigation { position: relative; isolation: isolate; }
 .top-navigation a { display: flex; align-items: center; gap: 6px; padding-inline: clamp(.5rem, 1.1vw, .95rem); }
 .top-navigation a[aria-current] { background: transparent; color: var(--on-fill); }
@@ -159,6 +160,8 @@ watch(() => route.fullPath, async () => {
   transform-origin: left; opacity: 0; background: var(--contrast-fill);
   transition: transform var(--motion-base) var(--ease-out), opacity var(--motion-fast); }
 .nav-indicator.visible { opacity: 1; }
+:global(:root[data-preset="studio"] .nav-indicator) { background: var(--surface-3); border-bottom: 2px solid var(--accent); }
+:global(:root[data-preset="studio"] .top-navigation a[aria-current]) { color: var(--text); }
 .header-balance { display: grid; gap: 3px; min-width: 48px; min-height: 40px; align-content: center; text-align: center; }
 .balance-value { display: inline-flex; justify-content: center; align-items: center; gap: 4px; }
 .account-link, .menu-toggle { display: inline-grid; place-items: center; padding: 0; width: 40px; height: 40px; color: var(--text);
@@ -187,7 +190,6 @@ watch(() => route.fullPath, async () => {
   .top-navigation { display: none; }
   .menu-toggle { display: inline-grid; flex: 0 0 auto; }
   .header-brand { gap: 4px; }
-  .topbar .brand { gap: 4px; font-size: 1.65rem; }
-  .topbar .brand-mark { width: 28px; height: 28px; }
+  .topbar .brand { font-size: 1.9rem; }
 }
 </style>

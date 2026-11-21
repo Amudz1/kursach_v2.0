@@ -5,7 +5,6 @@ import { api, explain } from '../api'
 import { useSession } from '../session'
 import UiBadge from '../components/ui/UiBadge.vue'
 import UiSkeleton from '../components/ui/UiSkeleton.vue'
-import UiSwitch from '../components/ui/UiSwitch.vue'
 import type { Plan } from '../types'
 
 const session = useSession()
@@ -59,7 +58,8 @@ onMounted(load)
     <p v-if="error" class="notice danger" role="alert">{{ error }} <button class="text-button" @click="load">Повторить</button></p>
     <p v-if="status" class="notice success" role="status">{{ status }}</p>
     <div v-if="loading" role="status"><span class="sr-only">Загружаем тарифы…</span><UiSkeleton :lines="3" /></div>
-    <UiSwitch v-if="plans.length" v-model="comparing" class="compare-toggle" label="Сравнить тарифы в таблице" />
+    <button v-if="plans.length" type="button" class="compare-toggle" :class="comparing ? 'secondary' : 'primary'"
+      :aria-expanded="comparing" @click="comparing = !comparing">{{ comparing ? 'К списку тарифов' : 'Сравнить тарифы' }}</button>
     <div v-if="comparing" class="plan-comparison" tabindex="0" aria-label="Сравнение тарифов">
       <table>
         <thead><tr><th scope="col">Возможность</th><th v-for="plan in plans" :key="plan.id" scope="col">{{ plan.name }}</th></tr></thead>
@@ -72,7 +72,7 @@ onMounted(load)
           <tr><th scope="row">Доступные модели</th><td v-for="plan in plans" :key="plan.id">{{ plan.allowedModels.join(', ') }}</td></tr>
           <tr><th scope="row">Подключение</th><td v-for="plan in plans" :key="plan.id">
             <UiBadge v-if="plan.code === session.account?.usage.planCode" tone="success">Ваш тариф</UiBadge>
-            <button v-else-if="plan.durationDays" type="button" class="primary" @click="choose(plan)">Подключить</button>
+            <button v-else-if="plan.durationDays" type="button" class="secondary" @click="choose(plan)">Подключить</button>
           </td></tr>
         </tbody>
       </table>
@@ -93,7 +93,7 @@ onMounted(load)
           <div><dt>Вложения</dt><dd>{{ Math.round(plan.maxAttachmentBytes / 1048576) }} МБ</dd></div>
         </dl>
         <ul class="model-list" aria-label="Доступные модели"><li v-for="model in plan.allowedModels" :key="model"><Check aria-hidden="true" />{{ model }}</li></ul>
-        <button v-if="plan.durationDays && plan.code !== session.account?.usage.planCode" class="primary" @click="choose(plan)">Подключить</button>
+        <button v-if="plan.durationDays && plan.code !== session.account?.usage.planCode" class="secondary" @click="choose(plan)">Подключить</button>
       </article>
     </div>
     <dialog ref="dialog" aria-labelledby="pay-title" @close="Object.assign(payment, { cardNumber: '', cardHolder: '', expireMonth: '', expireYear: '', cvv: '' })">

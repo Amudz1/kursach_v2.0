@@ -71,13 +71,18 @@ async function remove() {
           <RouterLink to="/appearance" class="secondary self-start">Оформление</RouterLink>
           <RouterLink to="/personas" class="secondary self-start">Персоны</RouterLink>
         </div>
-        <form class="fieldset stack" @submit.prevent="updateEmail">
+        <details name="account-details" class="fieldset" open>
+        <summary>Изменить электронную почту</summary>
+        <form class="stack account-edit-form" @submit.prevent="updateEmail">
           <h2>Электронная почта</h2>
           <label>Новый email <input v-model="email.email" type="email" autocomplete="email" maxlength="254" required></label>
           <label>Текущий пароль <input v-model="email.password" type="password" autocomplete="current-password" required></label>
           <button class="primary self-start" type="submit" :disabled="busy">Обновить email</button>
         </form>
-        <form class="fieldset stack" @submit.prevent="updatePassword">
+        </details>
+        <details name="account-details" class="fieldset">
+        <summary>Изменить пароль</summary>
+        <form class="stack account-edit-form" @submit.prevent="updatePassword">
           <h2>Пароль</h2>
           <label>Текущий пароль <input v-model="passwords.currentPassword" type="password" autocomplete="current-password" required></label>
           <label>Новый пароль <input v-model="passwords.password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
@@ -85,6 +90,7 @@ async function remove() {
           <p class="help">После смены пароля нужно войти заново.</p>
           <button class="primary self-start" type="submit" :disabled="busy">Сменить пароль</button>
         </form>
+        </details>
       </div>
       <aside class="preview-panel stack">
         <h2>Аккаунт</h2>
@@ -119,3 +125,8 @@ async function remove() {
     </dialog>
   </section>
 </template>
+
+<style scoped>
+summary { min-height: 40px; align-content: center; }
+.account-edit-form { padding-top: var(--space-3); }
+</style>

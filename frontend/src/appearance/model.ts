@@ -9,7 +9,7 @@ export const legacyTintKey = 'budz.theme-tint'
 
 export const appearanceOptions = {
   mode: ['system', 'light', 'dark'],
-  preset: ['classic', 'ultramarine', 'graphite', 'midnight', 'mint', 'sunset', 'terminal', 'contrast'],
+  preset: ['studio', 'classic', 'ultramarine', 'graphite', 'midnight', 'mint', 'sunset', 'terminal', 'contrast'],
   glow: ['off', 'soft', 'bright'],
   radius: ['sharp', 'standard', 'soft', 'pill'],
   density: ['compact', 'normal', 'spacious'],
@@ -69,6 +69,7 @@ export const defaultAppearance: Readonly<AppearanceSettings> = Object.freeze({
 })
 
 export const presets: Record<PresetId, { label: string; options?: Partial<AppearanceSettings> }> = {
+  studio: { label: 'Студия', options: { font: 'plex', messageStyle: 'flat', userSide: 'right' } },
   classic: { label: 'Классическая' },
   ultramarine: { label: 'Ультрамарин' },
   graphite: { label: 'Графит', options: { mode: 'dark' } },

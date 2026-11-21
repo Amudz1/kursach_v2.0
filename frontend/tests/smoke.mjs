@@ -21,6 +21,8 @@ const nav = (label) => page.getByRole('navigation', { name: 'Основная н
 const history = page.getByRole('navigation', { name: 'История диалогов' })
 const lightBackground = 'rgb(243, 238, 228)'
 const darkBackground = 'rgb(31, 32, 34)'
+const studioPaper = 'rgb(247, 243, 234)'
+const studioDark = 'rgb(24, 38, 58)'
 const background = () => page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)
 const tint = () => page.locator('html').getAttribute('data-tint')
 const customColor = page.getByLabel('Свой цвет', { exact: true })
@@ -40,6 +42,11 @@ async function openAppearance() {
   await action('Меню аккаунта').click()
   await page.getByRole('menuitem', { name: 'Оформление', exact: true }).click()
   await heading('Оформление').waitFor()
+}
+
+async function openChatRules() {
+  await page.locator('.chat-menu > summary').click()
+  await action('Правила').click()
 }
 
 async function verifyPresetContrast() {
@@ -68,11 +75,12 @@ async function verifyPresetContrast() {
       ['text', 'surface-0'], ['text', 'surface-1'], ['text', 'surface-2'], ['text', 'surface-3'],
       ['text-muted', 'surface-0'], ['text-muted', 'surface-1'], ['text-muted', 'surface-2'],
       ['accent', 'surface-1'], ['accent-2', 'surface-1'], ['btn-primary-text', 'btn-primary-bg'],
+      ['studio-sidebar-ink', 'studio-sidebar'], ['studio-sidebar-muted', 'studio-sidebar-fill'],
       ...['danger', 'success', 'warning', 'info'].map((tone) => [`status-${tone}-text`, `status-${tone}-bg`]),
     ]
     const failures = []
     try {
-      for (const preset of ['classic', 'ultramarine', 'graphite', 'midnight', 'mint', 'sunset', 'terminal', 'contrast']) {
+      for (const preset of ['studio', 'classic', 'ultramarine', 'graphite', 'midnight', 'mint', 'sunset', 'terminal', 'contrast']) {
         root.dataset.preset = preset
         for (const mode of ['light', 'dark']) {
           root.dataset.theme = mode
@@ -113,7 +121,7 @@ async function captureAppearanceMatrix() {
     { id: 'desktop', width: 1440, height: 900 },
     { id: 'mobile', width: 320, height: 820 },
   ]
-  for (const [preset, label] of [['classic', 'Классическая'], ['midnight', 'Полночь'], ['mint', 'Мята']]) {
+  for (const [preset, label] of [['studio', 'Студия'], ['classic', 'Классическая'], ['midnight', 'Полночь'], ['mint', 'Мята']]) {
     for (const [mode, modeLabel] of [['light', 'Светлая'], ['dark', 'Тёмная']]) {
       await page.setViewportSize({ width: 1440, height: 900 })
       await openAppearance()
@@ -134,8 +142,16 @@ async function captureAppearanceMatrix() {
         if (screen.nav) await goTo(screen.nav)
         if (screen.id === 'chat') {
           if (!(await history.isVisible())) await action('Показать список диалогов').click()
-          await history.getByRole('link', { name: 'Коллекции в C#', exact: true }).click()
+          if (preset === 'studio') {
+            await heading('Что хотите разобрать?').waitFor()
+            await page.evaluate(() => document.fonts.ready)
+            await page.screenshot({ path: path.join(matrix, `${preset}-${mode}-start-desktop.png`), animations: 'disabled' })
+          }
+          const thread = history.getByRole('link', { name: 'Коллекции в C#', exact: true })
+          await thread.click()
           await page.getByText('Подключено', { exact: true }).waitFor()
+          assert.equal(await thread.getAttribute('aria-current'), 'page')
+          assert.equal(await thread.evaluate((element) => getComputedStyle(element).backgroundColor), 'rgba(0, 0, 0, 0)')
         }
         if (screen.id === 'personalization') await heading('Проверка ответа').waitFor()
         if (screen.id === 'plans') await page.getByText('Токены в день', { exact: true }).first().waitFor()
@@ -144,6 +160,7 @@ async function captureAppearanceMatrix() {
         for (const { id, width, height } of layouts) {
           await page.setViewportSize({ width, height })
           await noOverflow()
+          if (screen.id === 'chat' && id === 'mobile') assert.ok((await page.locator('.conversation-header').boundingBox()).height <= 56)
           await page.screenshot({ path: path.join(matrix, `${preset}-${mode}-${screen.id}-${id}.png`), animations: 'disabled' })
         }
       }
@@ -182,6 +199,9 @@ async function mobileHistory() {
   await history.waitFor({ state: 'hidden' })
   await action('Показать список диалогов').click()
   await history.waitFor({ state: 'visible' })
+  const panel = page.getByRole('dialog', { name: 'История диалогов', exact: true })
+  assert.equal(await panel.evaluate((element) => element.matches(':modal') && element.contains(document.activeElement)), true)
+  await panel.getByRole('button', { name: 'Новый диалог', exact: true }).waitFor()
   await page.keyboard.press('Escape')
   await history.waitFor({ state: 'hidden' })
   assert.equal(await action('Показать список диалогов').evaluate((button) => document.activeElement === button), true)
@@ -190,7 +210,7 @@ try {
   await fs.mkdir(captures, { recursive: true })
   await page.goto(base)
   await heading('Войти в Budz').waitFor()
-  assert.equal(await background(), lightBackground)
+  assert.equal(await background(), studioPaper)
   await verifyPresetContrast()
   await page.evaluate(() => { localStorage.setItem('budz.theme', 'system') })
   await page.getByRole('radio', { name: 'Регистрация', exact: true }).check()
@@ -200,17 +220,18 @@ try {
   await page.getByLabel('Повторите пароль').fill(password)
   await action('Создать аккаунт').click()
   await heading('Как должен выглядеть Budz?').waitFor()
+  await page.getByRole('button', { name: 'Студия', pressed: true }).waitFor()
   assert.equal(await page.evaluate(() => localStorage.getItem('budz.theme')), null)
   assert.equal(await page.getByRole('radio', { name: 'Как в браузере' }).isChecked(), true)
   await page.getByRole('radio', { name: 'Тёмная' }).check()
-  assert.equal(await background(), darkBackground)
+  assert.equal(await background(), studioDark)
   await action('Дымчато-синий').click()
   await page.getByRole('button', { name: 'Дымчато-синий', pressed: true }).waitFor()
   assert.equal(await tint(), '#7293b6')
-  assert.notEqual(await background(), darkBackground)
+  assert.notEqual(await background(), studioDark)
   await action('Стандартный').click()
   assert.equal(await tint(), null)
-  assert.equal(await background(), darkBackground)
+  assert.equal(await background(), studioDark)
   await action('Далее').click()
   await heading('Как вам отвечать?').waitFor()
   await page.getByLabel('Язык', { exact: true }).selectOption('ru')
@@ -221,7 +242,7 @@ try {
   await action('Далее').click()
   await heading('Разрешить автоматическую память?').waitFor()
   await action('Начать работу').click()
-  await heading('Новый диалог').waitFor()
+  await heading('Что хотите разобрать?').waitFor()
   assert.equal(await page.getByLabel('Текущая персона').count(), 0)
   const topNavigation = page.locator('header').getByRole('navigation', { name: 'Основная навигация' })
   const headerNav = await topNavigation.boundingBox()
@@ -230,6 +251,12 @@ try {
   const fence = String.fromCharCode(96).repeat(3)
   const query = 'Объясни коллекции C#.\n\n' + fence + 'csharp\nvar books = new List<string>();\n' + fence
   const composer = page.getByLabel('Сообщение для Budz')
+  await action('Составить план').click()
+  assert.equal(await composer.inputValue(), 'Составить план')
+  await composer.fill('')
+  await composer.blur()
+  await page.mouse.move(10, 10)
+  await write('studio-start-dark.png')
   const compact = (await composer.boundingBox()).height
   assert.ok(compact <= 40, 'An empty composer must fit on one line')
   await composer.fill('Строка\n'.repeat(4))
@@ -272,19 +299,20 @@ try {
   assert.ok((await conversation.boundingBox()).width > expandedWidth)
   assert.equal(await composer.inputValue(), 'Черновик для проверки')
   assert.equal(page.url(), chat)
-  await action('Новый диалог').waitFor()
+  await action('Показать список диалогов').waitFor()
   await composer.fill('')
   await page.reload()
   await heading('Коллекции в C#').waitFor()
   await action('Показать список диалогов').waitFor()
   await history.waitFor({ state: 'hidden' })
-  assert.equal(await background(), darkBackground)
+  assert.equal(await background(), studioDark)
   await page.getByText('Подключено', { exact: true }).waitFor()
   await write('chat-dark.png')
   await action('Показать список диалогов').click()
   await history.getByText('Коллекции в C#', { exact: true }).waitFor()
   await openProfile()
   await page.getByRole('link', { name: 'Оформление', exact: true }).click()
+  await action('Классическая').click()
   await page.getByRole('radio', { name: 'Светлая' }).check()
   await page.emulateMedia({ colorScheme: 'dark' })
   assert.equal(await background(), lightBackground)
@@ -434,6 +462,7 @@ try {
   assert.ok(await page.evaluate(() => document.activeElement?.matches(':focus-visible')), 'Keyboard focus must be visible')
 
   await goTo('Память')
+  await action('Добавить факт').click()
   await heading('Добавить факт').waitFor()
   await page.getByLabel('Что запомнить').fill('Изучаю тестирование C#')
   await action('Сохранить факт').click()
@@ -441,6 +470,9 @@ try {
   await goTo('Тарифы')
   await heading('Тарифы').waitFor()
   await page.getByText('Токены в день', { exact: true }).first().waitFor()
+  await action('Сравнить тарифы').click()
+  await page.getByRole('table').waitFor()
+  await action('К списку тарифов').click()
   await page.getByRole('button', { name: 'Подключить', exact: true }).first().click()
   await action('Заполнить тестовыми данными').click()
   await action('Подтвердить').click()
@@ -458,22 +490,22 @@ try {
   await editor.getByLabel('Инструкции проекта').fill('Покажи, как проверить пример перед защитой.')
   await editor.getByLabel('Материалы проекта').fill('Материалы диплома о потоковых ответах.')
   await action('Сохранить проект').click()
-  await heading('Диплом по C#').waitFor()
+  await page.locator('.conversation-heading').getByText('Диплом по C#', { exact: true }).waitFor()
   const projects = page.getByRole('navigation', { name: 'Список проектов' })
   const project = projects.getByRole('link', { name: 'Диплом по C#', exact: true })
   await project.waitFor()
   await action('Новый проект').click()
   await editor.getByLabel('Название', { exact: true }).fill('Черновики')
   await action('Сохранить проект').click()
-  await heading('Черновики').waitFor()
+  await page.locator('.conversation-heading').getByText('Черновики', { exact: true }).waitFor()
   await project.click()
-  await heading('Диплом по C#').waitFor()
+  await page.locator('.conversation-heading').getByText('Диплом по C#', { exact: true }).waitFor()
   assert.equal(await project.getAttribute('aria-current'), 'location')
   assert.equal(await projects.getByRole('link', { name: 'Черновики', exact: true }).getAttribute('aria-current'), null)
   assert.ok((await projects.boundingBox()).y < (await history.boundingBox()).y, 'Projects must appear above the complete history')
   await history.getByText('Коллекции в C#', { exact: true }).waitFor()
   await page.getByText('В проекте пока нет диалогов.', { exact: true }).waitFor()
-  await action('Правила').click()
+  await openChatRules()
   const rules = page.getByRole('dialog', { name: 'Правила диалога' })
   await rules.getByText('Покажи, как проверить пример перед защитой.', { exact: true }).waitFor()
   await rules.getByText('Выключена', { exact: true }).waitFor()
@@ -495,8 +527,9 @@ try {
   assert.equal(exported.conversations[0].messages[0].content, 'Проверь функцию на C#')
   const [markdown] = await Promise.all([page.waitForEvent('download'), action('Скачать Markdown').click()])
   assert.match(await fs.readFile(await markdown.path(), 'utf-8'), /### Пользователь/u)
+  await page.getByRole('radio', { name: 'Импорт', exact: true }).check()
   const foreign = [{ name: 'Диалог из Claude', uuid: 'qa-claude', chat_messages: [
-    { sender: 'human', text: 'Подскажи, как проверить диплом.' }, { sender: 'assistant', text: 'Начни с матрицы приёмки.' },
+    { sender: 'human', text: 'Подскажи, как проверить диплом.' }, { sender: 'assistant', text: '## План проверки\n\nНачни с матрицы приёмки.' },
   ] }]
   await page.getByLabel('Файл переписки').setInputFiles({ name: 'conversations.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(foreign)) })
   await action('Импортировать').click()
@@ -505,6 +538,7 @@ try {
   await page.getByRole('link', { name: 'Открыть диалог', exact: true }).click()
   await heading('Диалог из Claude').waitFor()
   await page.getByText('Начни с матрицы приёмки.', { exact: true }).waitFor()
+  await page.locator('.message.assistant .markdown').getByRole('heading', { name: 'План проверки', level: 2 }).waitFor()
   await history.getByText('Диалог из Claude', { exact: true }).waitFor()
   await project.click()
   await heading('Диалоги проекта').waitFor()
@@ -515,12 +549,12 @@ try {
   await history.getByText('Диалог из Claude', { exact: true }).waitFor()
   await write('workspaces.png')
   await goTo('Диалоги')
-  await heading('Новый диалог').waitFor()
+  await heading('Что хотите разобрать?').waitFor()
   await history.getByText('Диалог из Claude', { exact: true }).click()
   await heading('Диалог из Claude').waitFor()
   await page.setViewportSize({ width: 360, height: 800 })
   await noOverflow()
-  await action('Правила').click()
+  await openChatRules()
   await rules.getByText('Покажи, как проверить пример перед защитой.', { exact: true }).waitFor()
   await action('Закрыть').click()
   await action('Показать список диалогов').click()
@@ -536,7 +570,7 @@ try {
   await action('Открыть временный диалог').click()
   await page.getByText('Временный диалог', { exact: true }).waitFor()
   assert.equal(await action('Прикрепить').count(), 0)
-  await action('Правила').click()
+  await openChatRules()
   await rules.getByText('Выключена', { exact: true }).waitFor()
   await action('Закрыть').click()
 
