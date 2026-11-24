@@ -1,0 +1,64 @@
+using AiAssistant.Application.Common;
+using AiAssistant.Domain;
+
+namespace AiAssistant.Application.Chats;
+
+public sealed partial class ChatSubmission
+{
+    public Task<Result<Guid>> PrepareRevisionAsync(ReviseChatMessage request, CancellationToken cancellationToken)
+    {
+        var replacement = request.Content?.Trim();
+        if (request.IsEdit && (string.IsNullOrEmpty(replacement) || replacement.Length > 10000))
+            return Task.FromResult(Result<Guid>.Fail(ErrorKind.Validation, "invalid_message", "Введите от 1 до 10 000 символов."));
+
+        return data.ForUserAsync(request.UserId, async ct =>
+        {
+            var target = await data.FirstAsync(data.Query<Message>(true)
+                .Where(message => message.Id == request.MessageId), ct);
+            if (target is null) return ChatAccess.NotFound<Guid>();
+            var chat = await access.FindAsync(request.UserId, target.ChatId, true, ct);
+            if (chat is null) return ChatAccess.NotFound<Guid>();
+
+            var query = data.Query<Message>(true).Where(message => message.ChatId == chat.Id);
+            var duplicate = await data.FirstAsync(query.Where(message => message.RequestId == request.RequestId), ct);
+            if (duplicate is not null) return Result<Guid>.Ok(duplicate.Id);
+            var latest = await data.ListAsync(query.Where(message => message.Status != GenerationStatus.Superseded)
+                .OrderByDescending(message => message.CreatedAt).ThenByDescending(message => message.Id).Take(2), ct);
+            var assistant = latest.FirstOrDefault(message => message.Role == MessageRole.Assistant);
+            var user = latest.FirstOrDefault(message => message.Role == MessageRole.User);
+            if (user is null || (request.IsEdit ? user.Id != target.Id : assistant?.Id != target.Id))
+                return Result<Guid>.Fail(ErrorKind.Conflict, "not_latest_message", "Изменить можно только последнее сообщение.");
+            if (assistant?.Status is GenerationStatus.Pending or GenerationStatus.Streaming)
+                return Result<Guid>.Fail(ErrorKind.Conflict, "generation_active", "Сначала остановите текущую генерацию.");
+
+            if (assistant is not null) assistant.Status = GenerationStatus.Superseded;
+            if (request.IsEdit)
+            {
+                user.Content = replacement!;
+                chat.Summary = null;
+                chat.SummaryUntilMessageId = null;
+            }
+
+            var persona = chat.PersonaId is { } personaId ? await personas.FindAsync(request.UserId, personaId, ct) : null;
+            var plan = await plans.ResolveAsync(request.UserId, ct);
+            var needsVision = await data.AnyAsync(data.Query<Attachment>().Where(file => file.MessageId == user.Id &&
+                file.ContentType.StartsWith("image/")), ct);
+            var model = SelectModel(plan, persona, assistant?.Model, needsVision) ?? SelectModel(plan, persona, null, needsVision);
+            if (model is null)
+                return Result<Guid>.Fail(ErrorKind.Forbidden, "model_not_allowed", "Модель недоступна на вашем тарифе.");
+            var now = clock.GetUtcNow();
+            if (!await usage.EnqueueAsync(request.UserId, plan.DailyTokenLimit, now, ct))
+                return LimitReached<Guid>();
+            var answer = new Message
+            {
+                ChatId = chat.Id, PersonaId = persona?.Id, Role = MessageRole.Assistant, Content = "", Model = model,
+                Status = GenerationStatus.Pending, CreatedAt = now,
+                TriggerMessageId = user.Id, RequestId = request.RequestId
+            };
+            chat.LastMessageAt = answer.CreatedAt;
+            data.Add(answer);
+            await data.SaveAsync(ct);
+            return Result<Guid>.Ok(answer.Id);
+        }, cancellationToken);
+    }
+}

@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: aiassistant
+      POSTGRES_USER: aiassistant
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
+    ports:
+      - "127.0.0.1:${DB_PORT:-15432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiassistant -d aiassistant"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  api:
+    build:
+      context: .
+      dockerfile: src/AiAssistant.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Postgres: Host=db;Database=aiassistant;Username=aiassistant;Password=${POSTGRES_PASSWORD:-local-development-only}
+      Database__MigrateOnStart: "true"
+      Database__SeedDemo: "${SEED_DEMO:-true}"
+      Database__DemoPassword: "${DEMO_PASSWORD:-Budz-local-demo-2026}"
+      Ai__Mode: "${AI_MODE:-Demo}"
+      OpenRouter__ApiKey: "${OPENROUTER_API_KEY:-}"
+      Files__Directory: /app/attachments
+    volumes:
+      - attachment-data:/app/attachments
+    ports:
+      - "127.0.0.1:${API_PORT:-8081}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  postgres-data:
+  attachment-data:
