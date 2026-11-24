@@ -7,4 +7,6 @@ public sealed class Workspace
     public required string Name { get; set; }
     public string Instructions { get; set; } = "";
     public string Materials { get; set; } = "";
+    public string? Color { get; set; }
+    public string? Icon { get; set; }
 }

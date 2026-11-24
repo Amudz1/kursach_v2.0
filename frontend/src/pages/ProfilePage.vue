@@ -3,8 +3,9 @@ import { onMounted, reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { api, explain } from '../api'
 import { useSession } from '../session'
+import LegalNotice from '../components/LegalNotice.vue'
 import StatisticsPanel from '../components/StatisticsPanel.vue'
-import ThemePicker from '../components/ThemePicker.vue'
+import UiAvatar from '../components/ui/UiAvatar.vue'
 import type { Statistics } from '../types'
 
 const session = useSession()
@@ -57,19 +58,32 @@ async function remove() {
 
 <template>
   <section class="page">
-    <header class="page-heading"><h1>Профиль</h1><p>{{ session.account?.username }} · {{ session.account?.email }}</p></header>
+    <header class="page-heading">
+      <div class="actions">
+        <UiAvatar v-if="session.account" :name="session.account.username" size="xl" decorative />
+        <div><h1>Профиль</h1><p>{{ session.account?.username }} · {{ session.account?.email }}</p></div>
+      </div>
+    </header>
     <p v-if="error" class="notice danger" role="alert">{{ error }}</p>
     <p v-if="success" class="notice success" role="status">{{ success }}</p>
     <div class="profile-grid">
       <div class="stack">
-        <ThemePicker />
-        <form class="fieldset stack" @submit.prevent="updateEmail">
+        <div class="actions">
+          <RouterLink to="/appearance" class="secondary self-start">Оформление</RouterLink>
+          <RouterLink to="/personas" class="secondary self-start">Персоны</RouterLink>
+        </div>
+        <details name="account-details" class="fieldset" open>
+        <summary>Изменить электронную почту</summary>
+        <form class="stack account-edit-form" @submit.prevent="updateEmail">
           <h2>Электронная почта</h2>
           <label>Новый email <input v-model="email.email" type="email" autocomplete="email" maxlength="254" required></label>
           <label>Текущий пароль <input v-model="email.password" type="password" autocomplete="current-password" required></label>
           <button class="primary self-start" type="submit" :disabled="busy">Обновить email</button>
         </form>
-        <form class="fieldset stack" @submit.prevent="updatePassword">
+        </details>
+        <details name="account-details" class="fieldset">
+        <summary>Изменить пароль</summary>
+        <form class="stack account-edit-form" @submit.prevent="updatePassword">
           <h2>Пароль</h2>
           <label>Текущий пароль <input v-model="passwords.currentPassword" type="password" autocomplete="current-password" required></label>
           <label>Новый пароль <input v-model="passwords.password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
@@ -77,6 +91,7 @@ async function remove() {
           <p class="help">После смены пароля нужно войти заново.</p>
           <button class="primary self-start" type="submit" :disabled="busy">Сменить пароль</button>
         </form>
+        </details>
       </div>
       <aside class="preview-panel stack">
         <h2>Аккаунт</h2>
@@ -100,9 +115,10 @@ async function remove() {
       <p v-if="statsError" class="notice danger" role="alert">{{ statsError }} <button class="text-button" @click="loadStatistics">Повторить</button></p>
       <StatisticsPanel v-if="statistics" :data="statistics" />
     </section>
+    <LegalNotice class="profile-legal" />
     <dialog ref="dialog" aria-labelledby="delete-account">
       <form class="stack" @submit.prevent="remove"><h2 id="delete-account">Удалить аккаунт?</h2>
-        <p>Будут удалены диалоги, файлы, сохранённые факты и настройки.</p>
+        <p>Будут удалены диалоги, файлы, сохранённые факты, настройки и переписка с поддержкой.</p>
         <label>Подтвердите паролем <input v-model="removePassword" type="password" autocomplete="current-password" required></label>
         <p v-if="deletionError" class="notice danger" role="alert">{{ deletionError }}</p>
         <div class="actions"><button type="button" class="secondary" autofocus @click="dialog?.close()">Отмена</button>
@@ -111,3 +127,9 @@ async function remove() {
     </dialog>
   </section>
 </template>
+
+<style scoped>
+summary { min-height: 40px; align-content: center; }
+.account-edit-form { padding-top: var(--space-3); }
+.profile-legal { margin-block-start: var(--space-5); }
+</style>

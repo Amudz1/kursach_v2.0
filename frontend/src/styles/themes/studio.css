@@ -1,0 +1,56 @@
+@layer tokens {
+  :root {
+    --studio-sand: light-dark(#f5e7d2, #30221b);
+    --studio-terracotta: light-dark(#9a402e, #f2a386);
+    --studio-bookmark: light-dark(#8c4f12, #f4c36c);
+  }
+
+  :root[data-preset="studio"] {
+    --studio-olive: light-dark(#51632e, #d2dd9d);
+    --studio-olive-wash: light-dark(#e6edcf, #343821);
+    --studio-plum: light-dark(#734570, #e8b3d7);
+    --studio-plum-wash: light-dark(#f1e0ee, #3d2638);
+
+    --base-paper: light-dark(#fff8ed, #251b16);
+    --base-sheet: light-dark(#fffcf6, #35271f);
+    --base-input: var(--base-sheet);
+    --base-message: var(--base-paper);
+    --base-inset: light-dark(#f3e2d0, #402c22);
+    --base-inset-hover: light-dark(#ebd4bb, #4b3227);
+    --base-pale: var(--studio-sand);
+    --base-rule: light-dark(#dac1a8, #6c4d40);
+    --dark-rule: light-dark(#987a61, #a3826e);
+    --base-accent: var(--studio-terracotta);
+    --base-accent-dark: var(--base-accent);
+    --base-primary-fill: var(--base-accent);
+    --base-contrast-fill: light-dark(#823425, #ffc0a8);
+    --base-focus: var(--base-accent);
+    --ink: light-dark(#32211c, #f8ebdb);
+    --muted: light-dark(#70584b, #ccaf9b);
+    --on-fill: light-dark(#fff8ed, #2b1b15);
+    --avatar-category-text: #fff8ed;
+    --brand-fill: light-dark(#704333, #55352a);
+    --brand-mark-dot: #f4c36c;
+    --brand-accent: var(--studio-plum);
+    --accent-2: var(--accent-2-custom, var(--studio-olive));
+    --status-info-bg: var(--studio-plum-wash);
+    --status-info-text: var(--studio-plum);
+
+    --panel-surface: var(--surface-3);
+    --panel-active: var(--inset-hover);
+    --auth-background: var(--panel-surface);
+    --auth-text: var(--text);
+    --auth-muted: var(--text-muted);
+    --auth-wash-primary: color-mix(in oklab, var(--accent) 15%, transparent);
+    --auth-wash-secondary: color-mix(in oklab, var(--accent-2) 17%, transparent);
+  }
+
+  :root[data-preset="studio"][data-accent-auto] {
+    --accent-2: oklch(from var(--accent) l c calc(h + 150));
+  }
+
+  :root[data-preset="contrast"] {
+    --studio-bookmark: var(--accent);
+    --panel-surface: var(--surface-0);
+  }
+}

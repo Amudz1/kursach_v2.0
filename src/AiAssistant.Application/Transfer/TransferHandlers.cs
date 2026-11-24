@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using AiAssistant.Application.Chats;
+using AiAssistant.Application.Appearance;
 using AiAssistant.Application.Common;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Application.Personalization;
@@ -19,7 +20,7 @@ public sealed record TransferConversation(Guid Id, Guid? WorkspaceId, string Tit
 public sealed record TransferMemory(string Content, bool IsEnabled, string Source, DateTimeOffset CreatedAt);
 public sealed record TransferArchive(string Format, int Version, DateTimeOffset ExportedAt,
     IReadOnlyList<TransferConversation> Conversations, IReadOnlyList<WorkspaceView>? Workspaces,
-    ProfileView? Personalization, IReadOnlyList<TransferMemory>? Memories);
+    ProfileView? Personalization, IReadOnlyList<TransferMemory>? Memories, AppearanceView? Appearance = null);
 public sealed record ImportReport(int Imported, int Skipped, IReadOnlyList<Guid> ChatIds);
 public sealed record ImportConversations(Guid UserId, Guid? WorkspaceId, string Json) : IRequest<Result<ImportReport>>;
 public sealed record ExportConversations(Guid UserId, Guid? WorkspaceId, Guid? ChatId, bool IncludeAccount)
@@ -115,9 +116,10 @@ public sealed class TransferHandlers(IAssistantData data, TimeProvider clock) :
             .OrderBy(item => item.CreatedAt).ThenBy(item => item.Id).Select(item => new TransferMemory(item.Content,
                 item.IsEnabled, item.Source == MemorySource.Auto ? "auto" : "manual", item.CreatedAt)), ct);
         var spaces = await data.ListAsync(data.Query<Workspace>().Where(item => item.UserId == request.UserId)
-            .OrderBy(item => item.Name).Select(item => new WorkspaceView(item.Id, item.Name, item.Instructions, item.Materials)), ct);
+            .OrderBy(item => item.Name).Select(item => new WorkspaceView(item.Id, item.Name, item.Instructions, item.Materials, item.Color, item.Icon)), ct);
+        var appearance = await data.FirstAsync(data.Query<AppearanceSettings>().Where(item => item.UserId == request.UserId), ct);
         return Result<TransferArchive>.Ok(new("budz-conversations", 1, clock.GetUtcNow(), output, spaces,
-            settings is null ? null : ProfileView.From(settings), memory));
+            settings is null ? null : ProfileView.From(settings), memory, AppearanceView.From(appearance)));
     }
 
     private Guid AddConversation(ImportConversations request, ImportedConversation item, string key)

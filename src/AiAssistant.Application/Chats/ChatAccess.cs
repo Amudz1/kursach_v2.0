@@ -16,4 +16,15 @@ public sealed class ChatAccess(IAssistantData data, TimeProvider? clock = null)
 
     public static Result<T> NotFound<T>() =>
         Result<T>.Fail(ErrorKind.NotFound, "chat_not_found", "Чат не найден.");
+
+    public IQueryable<Message> VisibleMessages(Guid chatId) =>
+        data.Query<Message>().Where(message => message.ChatId == chatId && message.Status != GenerationStatus.Superseded);
+
+    public static IQueryable<Message> Before(IQueryable<Message> query, Message anchor) =>
+        query.Where(message => message.CreatedAt < anchor.CreatedAt ||
+            (message.CreatedAt == anchor.CreatedAt && message.Id.CompareTo(anchor.Id) < 0));
+
+    public static IQueryable<Message> After(IQueryable<Message> query, Message anchor) =>
+        query.Where(message => message.CreatedAt > anchor.CreatedAt ||
+            (message.CreatedAt == anchor.CreatedAt && message.Id.CompareTo(anchor.Id) > 0));
 }

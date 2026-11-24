@@ -1,19 +1,39 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-preset="studio" data-font="plex">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script>
+      // Applies the cached appearance before Vue mounts, so the page never flashes the default theme.
+      // The rules live in src/appearance/model.ts; this script only copies precomputed, validated attributes.
       try {
         const root = document.documentElement
-        const theme = localStorage.getItem('budz.theme')
-        if (theme === 'light' || theme === 'dark') root.dataset.theme = theme
-        const tint = localStorage.getItem('budz.theme-tint')
-        if (tint && /^#[0-9a-f]{6}$/i.test(tint)) {
-          root.dataset.tint = tint
-          root.style.setProperty('--theme-tint', tint)
+        const hex = /^#[0-9a-f]{6}$/i
+        const cache = JSON.parse(localStorage.getItem('budz.appearance') || 'null')
+        if (cache && cache.root && typeof cache.root === 'object') {
+          const dataset = cache.root.dataset || {}
+          const vars = cache.root.vars || {}
+          for (const name in dataset) {
+            if (/^[a-z-]+$/.test(name) && /^[\w#-]+$/.test(String(dataset[name]))) root.setAttribute('data-' + name, dataset[name])
+          }
+          for (const name in vars) {
+            if (/^[a-z0-9-]+$/.test(name) && /^(#[0-9a-f]{6}|\d{1,2}%)$/i.test(String(vars[name]))) root.style.setProperty('--' + name, vars[name])
+          }
+        } else {
+          // Settings saved by dev_2; the app moves them into the new cache on start.
+          const theme = localStorage.getItem('budz.theme')
+          if (theme === 'light' || theme === 'dark') root.dataset.theme = theme
+          const tint = localStorage.getItem('budz.theme-tint')
+          if (theme === 'light' || theme === 'dark' || theme === 'system' || (tint && hex.test(tint))) {
+            root.dataset.preset = 'classic'
+            root.dataset.font = 'system'
+          }
+          if (tint && hex.test(tint)) {
+            root.dataset.tint = tint.toLowerCase()
+            root.style.setProperty('--theme-tint', tint.toLowerCase())
+          }
         }
-      } catch { /* Browser storage can be unavailable. */ }
+      } catch { /* Browser storage can be unavailable or hold invalid data. */ }
     </script>
     <title>AI Helper Budz</title>
   </head>

@@ -1,14 +1,21 @@
 using AiAssistant.Application.Common;
+using AiAssistant.Application.Appearance;
 using AiAssistant.Application.Persistence;
 using AiAssistant.Domain;
 using MediatR;
 
 namespace AiAssistant.Application.Workspaces;
 
-public sealed record WorkspaceView(Guid Id, string Name, string Instructions, string Materials);
+public sealed record WorkspaceView(Guid Id, string Name, string Instructions, string Materials, string? Color = null, string? Icon = null);
 public sealed record ListWorkspaces(Guid UserId) : IRequest<Result<IReadOnlyList<WorkspaceView>>>;
 public sealed record SaveWorkspace(Guid UserId, Guid? Id, string Name, string? Instructions, string? Materials)
-    : IRequest<Result<Guid>>;
+    : IRequest<Result<Guid>>
+{
+    public string? Color { get; init; }
+    public string? Icon { get; init; }
+    public bool UpdateColor { get; init; }
+    public bool UpdateIcon { get; init; }
+}
 public sealed record DeleteWorkspace(Guid UserId, Guid Id) : IRequest<Result<Unit>>;
 
 public sealed class WorkspaceHandlers(IAssistantData data) :
@@ -18,13 +25,17 @@ public sealed class WorkspaceHandlers(IAssistantData data) :
     public async Task<Result<IReadOnlyList<WorkspaceView>>> Handle(ListWorkspaces request, CancellationToken ct) =>
         Result<IReadOnlyList<WorkspaceView>>.Ok(await data.ListAsync(data.Query<Workspace>()
             .Where(item => item.UserId == request.UserId).OrderBy(item => item.Name).ThenBy(item => item.Id)
-            .Select(item => new WorkspaceView(item.Id, item.Name, item.Instructions, item.Materials)), ct));
+            .Select(item => new WorkspaceView(item.Id, item.Name, item.Instructions, item.Materials, item.Color, item.Icon)), ct));
 
     public Task<Result<Guid>> Handle(SaveWorkspace request, CancellationToken cancellationToken)
     {
         var name = request.Name.Trim();
         var instructions = request.Instructions?.Trim() ?? "";
         var materials = request.Materials?.Trim() ?? "";
+        var errors = new Dictionary<string, string[]>();
+        if (!EntityAppearance.ValidColor(request.Color)) errors["color"] = ["Выберите цвет из палитры."];
+        if (!EntityAppearance.ValidIcon(request.Icon)) errors["icon"] = ["Выберите иконку из списка."];
+        if (errors.Count > 0) return Task.FromResult(Result<Guid>.Invalid(errors));
         if (name.Length is 0 or > 80 || instructions.Length > 2000 || materials.Length > 10000 ||
             name.Contains('\0') || instructions.Contains('\0') || materials.Contains('\0'))
             return Task.FromResult(Result<Guid>.Fail(ErrorKind.Validation, "invalid_workspace",
@@ -44,6 +55,8 @@ public sealed class WorkspaceHandlers(IAssistantData data) :
             workspace.Name = name;
             workspace.Instructions = instructions;
             workspace.Materials = materials;
+            if (request.UpdateColor) workspace.Color = request.Color;
+            if (request.UpdateIcon) workspace.Icon = request.Icon;
             await data.SaveAsync(ct);
             return Result<Guid>.Ok(workspace.Id);
         }, cancellationToken);

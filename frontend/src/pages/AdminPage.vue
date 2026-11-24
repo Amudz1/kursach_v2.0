@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { api, explain } from '../api'
 import { useSession } from '../session'
 import StatisticsPanel from '../components/StatisticsPanel.vue'
@@ -117,8 +118,9 @@ async function readContext() {
   <section class="page">
     <header class="page-heading"><h1>Администрирование</h1><p>Статистика и настройки системы.</p></header>
     <div class="actions admin-nav" aria-label="Разделы администрирования">
-      <button v-for="(label, key) in tabs" :key="key" :class="tab === key ? 'primary' : 'secondary'"
+      <button v-for="(label, key) in tabs" :key="key" class="secondary"
         :aria-pressed="tab === key" @click="tab = key">{{ label }}</button>
+      <RouterLink to="/admin/support" class="secondary">Поддержка</RouterLink>
     </div>
     <p v-if="error" class="notice danger" role="alert">{{ error }} <button v-if="tab !== 'context'" class="text-button" @click="load">Повторить</button></p>
     <p v-if="success" class="notice success" role="status">{{ success }}</p>
@@ -216,3 +218,8 @@ async function readContext() {
     </dialog>
   </section>
 </template>
+
+<style scoped>
+.record { transition: background-color var(--motion-base), border-color var(--motion-base); }
+.record:hover, .record:focus-within { background: var(--surface-2); border-color: var(--accent); }
+</style>

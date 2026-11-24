@@ -15,12 +15,14 @@ export type AdminUser = { id: string; username: string; email: string; role: 'Ad
 export type AdminPersona = { id: string; settings: { profile: PersonaInput; model: string | null; isActive: boolean } }
 export type AdminPlan = { id: string; settings: Omit<Plan, 'id'> & { sortOrder: number; isActive: boolean } }
 
+export type InterfaceVariant = 'current' | 'focus'
 export type Account = {
   id: string
   username: string
   email: string
   role: 'User' | 'Admin'
   onboardingCompleted: boolean
+  interfaceVariant?: InterfaceVariant
   usage: Usage
 }
 
@@ -44,9 +46,10 @@ export type TaskMode = 'general' | 'code' | 'learn' | 'write' | 'plan'
 export type TaskPreference = { task: TaskMode; length: string | null; format: string | null; instructions: string | null }
 export type ResponseDecision = { task: TaskMode; length: string; format: string; fromHistory: boolean; rule: string | null; instructions: string | null }
 
-export type PersonaInput = { name: string; description: string; instructions: string; temperature: number }
+type EntityAppearance = { color?: string | null; icon?: string | null }
+export type PersonaInput = { name: string; description: string; instructions: string; temperature: number } & EntityAppearance
 export type Persona = PersonaInput & { id: string; model: string | null; isCustom: boolean }
-export type Workspace = { id: string; name: string; instructions: string; materials: string }
+export type Workspace = { id: string; name: string; instructions: string; materials: string } & EntityAppearance
 export type Chat = { id: string; title: string; personaId: string | null; isPinned: boolean; lastMessageAt: string; workspaceId: string | null; expiresAt: string | null }
 export type ChatRules = {
   language: string; tone: string; level: string; length: string; format: string; adaptToTask: boolean;
@@ -69,8 +72,12 @@ export type Message = {
   feedbackReason: string | null
   attachments?: Attachment[] | null
   rules?: ChatRules | null
+  isBookmarked?: boolean
 }
-export type MessagePage = { items: Message[]; nextBefore: string | null }
+export type MessagePage = { items: Message[]; nextBefore: string | null; nextAfter: string | null }
+export type MessageLink = { id: string; role: Message['role']; text: string; matchStart: number; matchLength: number }
+export type MessageLinks = { items: MessageLink[]; next: string | null }
+export type ResumeChat = { chat: Chat; anchorId: string | null; text: string }
 export type Page<T> = { items: T[]; hasMore: boolean }
 export type Memory = { id: string; content: string; source: 'manual' | 'auto'; isEnabled: boolean; createdAt: string }
 export type Adaptation = { feedbackId: string; currentLength: string; proposedLength: string }

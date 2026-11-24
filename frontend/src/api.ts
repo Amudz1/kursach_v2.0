@@ -1,5 +1,5 @@
 export class ApiError extends Error {
-  constructor(readonly status: number, readonly code: string, title: string) {
+  constructor(readonly status: number, readonly code: string, title: string, readonly fields?: Record<string, string[]>) {
     super(title)
   }
 }
@@ -34,7 +34,7 @@ export async function apiResponse(path: string, options: ApiInput = {}): Promise
   const problem = await response.json().catch(() => ({})) as { title?: string; code?: string; errors?: Record<string, string[]> }
   const validation = Object.values(problem.errors ?? {}).flat().find(Boolean)
   const fallback = response.status === 401 ? 'Сессия завершилась. Войдите снова.' : 'Запрос не выполнен. Попробуйте ещё раз.'
-  throw new ApiError(response.status, problem.code ?? '', validation ?? problem.title ?? fallback)
+  throw new ApiError(response.status, problem.code ?? '', validation ?? problem.title ?? fallback, problem.errors)
 }
 
 export async function api<T>(path: string, options?: ApiInput): Promise<T> {

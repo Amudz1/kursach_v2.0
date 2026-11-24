@@ -10,9 +10,11 @@ public sealed record LoginAccount(string Login, string Password) : IRequest<Resu
 public sealed record RotateSession(string? RefreshToken) : IRequest<Result<SessionGrant>>;
 public sealed record EndSession(string? RefreshToken) : IRequest<Result<Unit>>;
 public sealed record GetAccount(Guid UserId) : IRequest<Result<AccountView>>;
+public sealed record ChangeInterfaceVariant(Guid UserId, string? InterfaceVariant) : IRequest<Result<Unit>>;
 public sealed record ChangeEmail(Guid UserId, string Email, string Password) : IRequest<Result<Unit>>;
 public sealed record ChangePassword(Guid UserId, string CurrentPassword, string Password, string PasswordConfirmation)
     : IRequest<Result<Unit>>;
 public sealed record DeleteAccount(Guid UserId, string Password) : IRequest<Result<Unit>>;
 
-public sealed record AccountView(Guid Id, string Username, string Email, string Role, bool OnboardingCompleted, UsageView Usage);
+public sealed record AccountView(Guid Id, string Username, string Email, string Role, bool OnboardingCompleted, UsageView Usage,
+    string InterfaceVariant);

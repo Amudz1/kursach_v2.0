@@ -15,6 +15,10 @@ public sealed class AccountController(ISender sender) : ApplicationController
     public async Task<IActionResult> Get(CancellationToken cancellationToken) =>
         From(await sender.Send(new GetAccount(CurrentUserId), cancellationToken));
 
+    [HttpPut("interface")]
+    public async Task<IActionResult> Interface(ChangeInterfaceBody body, CancellationToken cancellationToken) =>
+        NoContentFrom(await sender.Send(new ChangeInterfaceVariant(CurrentUserId, body.InterfaceVariant), cancellationToken));
+
     [HttpGet("stats")]
     public async Task<IActionResult> Stats(CancellationToken cancellationToken, int days = 30) =>
         From(await sender.Send(new GetPersonalStatistics(CurrentUserId, days), cancellationToken));
@@ -35,6 +39,7 @@ public sealed class AccountController(ISender sender) : ApplicationController
     public async Task<IActionResult> Delete(DeleteBody body, CancellationToken cancellationToken) =>
         NoContentFrom(await sender.Send(new DeleteAccount(CurrentUserId, body.Password), cancellationToken));
 
+    public sealed record ChangeInterfaceBody(string? InterfaceVariant);
     public sealed record ChangeEmailBody(string Email, string Password);
     public sealed record ChangePasswordBody(string CurrentPassword, string Password, string PasswordConfirmation);
     public sealed record DeleteBody(string Password);
