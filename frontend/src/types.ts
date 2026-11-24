@@ -15,12 +15,14 @@ export type AdminUser = { id: string; username: string; email: string; role: 'Ad
 export type AdminPersona = { id: string; settings: { profile: PersonaInput; model: string | null; isActive: boolean } }
 export type AdminPlan = { id: string; settings: Omit<Plan, 'id'> & { sortOrder: number; isActive: boolean } }
 
+export type InterfaceVariant = 'current' | 'focus'
 export type Account = {
   id: string
   username: string
   email: string
   role: 'User' | 'Admin'
   onboardingCompleted: boolean
+  interfaceVariant?: InterfaceVariant
   usage: Usage
 }
 

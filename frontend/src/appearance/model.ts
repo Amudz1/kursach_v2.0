@@ -38,6 +38,8 @@ export type AppearanceSettings = { [K in OptionKey]: Options[K][number] } & {
   accent: HexColor | null
   /** Second accent; `auto` derives it from the main accent on the hue wheel. */
   accent2: HexColor | 'auto' | null
+  /** Optional colour for Markdown headings in assistant replies. */
+  headingColor: HexColor | null
   /** Strength of the accent mixed into backgrounds, 0–30 %. */
   backgroundTint: number
   /** Used only when `assistantAvatar` is `custom`. */
@@ -51,6 +53,7 @@ export const defaultAppearance: Readonly<AppearanceSettings> = Object.freeze({
   preset: 'classic',
   accent: null,
   accent2: null,
+  headingColor: null,
   backgroundTint: 11,
   glow: 'soft',
   radius: 'standard',
@@ -112,6 +115,7 @@ export function normalizeAppearance(input: unknown): AppearanceSettings {
     presets[preset].options?.messageOutline ?? defaultAppearance.messageOutline)
   settings.accent = readHex(source.accent)
   settings.accent2 = source.accent2 === 'auto' ? 'auto' : readHex(source.accent2)
+  settings.headingColor = readHex(source.headingColor)
   settings.backgroundTint = readTint(source.backgroundTint)
   settings.assistantAvatarColor = readHex(source.assistantAvatarColor)
   return settings as AppearanceSettings
@@ -129,7 +133,9 @@ export const managedAttributes = [
   'theme', 'tint', 'preset', 'glow', 'radius', 'density', 'font', 'font-scale', 'code-font', 'message-style',
   'message-outline', 'chat-width', 'user-side', 'avatar', 'code-theme', 'message-actions', 'pattern', 'motion', 'accent-auto', 'background-tinted',
 ] as const
-export const managedVars = ['theme-tint', 'accent-2-custom', 'avatar-custom', 'avatar-custom-text', 'background-tint'] as const
+export const managedVars = [
+  'theme-tint', 'accent-2-custom', 'avatar-custom', 'avatar-custom-text', 'background-tint', 'answer-heading-color',
+] as const
 
 export function toRootAttributes(settings: AppearanceSettings): RootAttributes {
   const dataset: Record<string, string> = {
@@ -158,6 +164,7 @@ export function toRootAttributes(settings: AppearanceSettings): RootAttributes {
     vars['theme-tint'] = settings.accent
   }
   if (settings.accent2 && settings.accent2 !== 'auto') vars['accent-2-custom'] = settings.accent2
+  if (settings.headingColor) vars['answer-heading-color'] = settings.headingColor
   if (settings.accent2 === 'auto') dataset['accent-auto'] = 'true'
   if (settings.backgroundTint !== defaultAppearance.backgroundTint) dataset['background-tinted'] = 'true'
   if (settings.assistantAvatar === 'custom' && settings.assistantAvatarColor) {

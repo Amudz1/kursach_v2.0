@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { api, explain } from '../api'
 import { useSession } from '../session'
 import StatisticsPanel from '../components/StatisticsPanel.vue'
@@ -119,6 +120,7 @@ async function readContext() {
     <div class="actions admin-nav" aria-label="Разделы администрирования">
       <button v-for="(label, key) in tabs" :key="key" class="secondary"
         :aria-pressed="tab === key" @click="tab = key">{{ label }}</button>
+      <RouterLink to="/admin/support" class="secondary">Поддержка</RouterLink>
     </div>
     <p v-if="error" class="notice danger" role="alert">{{ error }} <button v-if="tab !== 'context'" class="text-button" @click="load">Повторить</button></p>
     <p v-if="success" class="notice success" role="status">{{ success }}</p>

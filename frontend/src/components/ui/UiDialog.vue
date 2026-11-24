@@ -5,29 +5,33 @@ import { focusableIn, lockScroll, trapTab, unlockScroll } from './focus'
 
 // A modal dialog: focus moves in and is trapped, Esc and the backdrop close it, focus returns on close (ТЗ 10).
 const open = defineModel<boolean>({ default: false })
-withDefaults(defineProps<{ title: string; description?: string; size?: 'sm' | 'md' | 'lg'; dismissible?: boolean }>(),
+const props = withDefaults(defineProps<{ title: string; description?: string; size?: 'sm' | 'md' | 'lg'; dismissible?: boolean }>(),
   { size: 'md', dismissible: true })
 const panel = ref<HTMLElement>()
 const id = `dialog-${useId()}`
 let returnTo: HTMLElement | null = null
+let locked = false
 
 watch(open, async (value) => {
   if (value) {
     returnTo = document.activeElement as HTMLElement | null
     lockScroll()
+    locked = true
     await nextTick()
-    const target = panel.value?.querySelector<HTMLElement>('[autofocus]') ?? (panel.value && focusableIn(panel.value)[1]) ?? panel.value
-    target?.focus()
-  } else {
+    if (!open.value || !panel.value) return
+    const target = panel.value.querySelector<HTMLElement>('[autofocus]') ?? focusableIn(panel.value)[0] ?? panel.value
+    target.focus()
+  } else if (locked) {
+    locked = false
     unlockScroll()
-    returnTo?.focus()
+    if (returnTo?.isConnected) returnTo.focus({ preventScroll: true })
   }
 }, { immediate: true })
-onBeforeUnmount(() => { if (open.value) unlockScroll() })
+onBeforeUnmount(() => { if (locked) unlockScroll() })
 
 function close() { open.value = false }
 function onKey(event: KeyboardEvent) {
-  if (event.key === 'Escape') { event.preventDefault(); close() }
+  if (event.key === 'Escape' && props.dismissible) { event.preventDefault(); close() }
   else if (panel.value) trapTab(event, panel.value)
 }
 </script>
@@ -40,7 +44,7 @@ function onKey(event: KeyboardEvent) {
           :aria-describedby="description ? `${id}-description` : undefined" tabindex="-1" @keydown="onKey">
           <header>
             <h2 :id="`${id}-title`">{{ title }}</h2>
-            <button type="button" class="close" aria-label="Закрыть" @click="close"><X aria-hidden="true" /></button>
+            <button v-if="dismissible" type="button" class="close" aria-label="Закрыть" @click="close"><X aria-hidden="true" /></button>
           </header>
           <p v-if="description" :id="`${id}-description`" class="description">{{ description }}</p>
           <div class="body"><slot :close="close" /></div>
@@ -76,6 +80,10 @@ h2 { font-size: var(--font-size-xl); letter-spacing: -.02em; }
 .close:active { transform: scale(.92); }
 .close svg { width: 18px; height: 18px; }
 footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
+@media (max-width: 900px) {
+  .close, footer :deep(button) { min-width: 44px; min-height: 44px; }
+  footer :deep(button) { max-width: 100%; white-space: normal; }
+}
 .ui-dialog-enter-active, .ui-dialog-leave-active { transition: opacity var(--motion-base) var(--ease-out); }
 .ui-dialog-enter-active .panel, .ui-dialog-leave-active .panel { transition: transform var(--motion-base) var(--ease-out), opacity var(--motion-base); }
 .ui-dialog-enter-from, .ui-dialog-leave-to { opacity: 0; }

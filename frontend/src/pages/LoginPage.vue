@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { explain } from '../api'
 import { useSession } from '../session'
+import LegalNotice from '../components/LegalNotice.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiProgress from '../components/ui/UiProgress.vue'
 import UiSegmented from '../components/ui/UiSegmented.vue'
 
 const session = useSession()
+const route = useRoute()
 const router = useRouter()
 const mode = ref<'login' | 'register'>('login')
 const registering = computed(() => mode.value === 'register')
@@ -33,7 +35,7 @@ async function submit() {
       username: login.value, email: email.value, password: password.value, passwordConfirmation: confirmation.value,
     })
     else await session.signIn('login', { login: login.value, password: password.value })
-    await router.replace('/chats')
+    await router.replace(route.query.redirect === 'support' && session.account?.onboardingCompleted ? '/help/support' : '/chats')
   } catch (reason) { error.value = explain(reason) }
   finally { busy.value = false }
 }
@@ -65,6 +67,7 @@ async function submit() {
         <p v-if="error" class="notice danger" role="alert">{{ error }}</p>
         <UiButton variant="primary" :loading="busy" type="submit">{{ registering ? 'Создать аккаунт' : 'Войти' }}</UiButton>
       </form>
+      <LegalNotice />
     </div>
   </div>
 </template>

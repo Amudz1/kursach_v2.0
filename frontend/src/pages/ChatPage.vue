@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, effectScope, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { ArrowDown, BookOpen, Bookmark, Check, ChevronDown, Copy, Ellipsis, FileImage, FileText, Folder, Lightbulb, ListChecks, PanelLeft, Paperclip, Pencil, Pin, PinOff, Plus, RotateCcw, Search, Send, Square, ThumbsDown, ThumbsUp, X } from 'lucide-vue-next'
+import { explain } from '../api'
+import { ArrowDown, ArrowRight, BookOpen, Bookmark, Check, ChevronDown, Code, Copy, Ellipsis, FileImage, FileText, Folder, Lightbulb, ListChecks, MessagesSquare, PanelLeft, Paperclip, PenLine, Pin, PinOff, Plus, RotateCcw, Search, Send, Settings, SlidersHorizontal, Square, ThumbsDown, ThumbsUp, X } from 'lucide-vue-next'
 import { categoryColors, entityColor, entityIcon } from '../appearance/entities'
 import { appearance } from '../appearance'
-import { api, explain } from '../api'
+import { attachmentExtensions } from '../chat-attachments'
+import { insertAtCaret, messageLimit, type DraftCaret } from '../chat-drafts'
+import { quotedRequest, quotedSelection, quoteLimit, submittedLength } from '../chat-quotes'
+import { focusHistoryTarget } from '../focus-history-target'
 import { useSession } from '../session'
 import ChatMarkdown from '../components/ChatMarkdown.vue'
 import ChatNavigationPanel from '../components/ChatNavigationPanel.vue'
@@ -14,20 +18,47 @@ import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiChip from '../components/ui/UiChip.vue'
 import UiIconButton from '../components/ui/UiIconButton.vue'
-import { useChat } from '../use-chat'
-import { useChatResume } from '../use-chat-resume'
-import type { Chat, Message, Persona } from '../types'
+import UiDialog from '../components/ui/UiDialog.vue'
+import { lockScroll, trapTab, unlockScroll } from '../components/ui/focus'
+import { useToast } from '../components/ui/use-toast'
+import type { ChatState } from '../use-chat'
+import type { Chat, Message } from '../types'
+import { Mic, Pause, Play, Quote, Volume2 } from 'lucide-vue-next'
+import type { AnswerSpeech } from '../use-answer-speech'
+import type { LoadVoiceSession, VoiceSession } from '../voice-session'
 
+const props = defineProps<{
+  chat: ChatState; voice?: VoiceSession; loadVoice: LoadVoiceSession; confirmVoiceDeparture: () => Promise<boolean>; focus?: boolean
+}>()
+const voicePhase = computed(() => props.voice?.recorder.phase.value ?? 'idle')
+const voiceOpening = ref(false)
+const voiceStatus = ref('')
+const toast = useToast()
 const {
   chats, messages, selected, selectedId, model, currentPlan, search, nextBefore, nextAfter, loadingPage, highlightedId, bookmarkPending,
-  chatsHaveMore, draft, files, busy, loading, error, linked, flow, lastUser, lastAnswer, adaptation, transcript,
+  chatsHaveMore, draft, draftQuote, draftRestored, draftHadFiles, draftConflict, files, rejectedFiles, fileErrors,
+  busy, loading, error, messageNavigationError, linked, flow, lastAnswer, adaptation, transcript, bindTranscript,
   workspaces, workspaceId, workspaceQuery, currentWorkspace,
   projectChats, projectHasMore, projectLoading, loadProjectChats, loadWorkspaces, openProject, projectRemoved,
-  loadChats, loadMessages, jumpToMessage, toggleBookmark, newChat, patch, move, remove, changeDraft, chooseFiles, removeFile, send, stop, revise, rate,
-  decide, download,
-} = useChat()
+  loadChats, loadMessages, openMessage, returnToConversation, toggleBookmark, newChat, patch, move, remove, changeDraft, chooseFiles, removeFile, send, stop, regenerate, rate,
+  decide, download, resume, resumeRoute, rememberPosition, personas,
+  clearDraft, keepOwnDraft, useExternalDraft, setDraftQuote,
+} = props.chat
+const speech = shallowRef<AnswerSpeech>()
+const speechScope = effectScope(true)
+const spokenId = computed(() => speech.value?.activeId.value)
+const speechPaused = computed(() => speech.value?.paused.value)
+const speechNotice = computed(() => speech.value?.notice.value)
+let speechIntent = 0
+let pageActive = true
+const microphoneInUse = computed(() => voicePhase.value === 'requesting' || voicePhase.value === 'recording' || voicePhase.value === 'finishing')
+watch(microphoneInUse, (active) => { if (active) stopSpeech() }, { flush: 'sync' })
 const compactLayout = window.matchMedia('(max-width: 900px)')
 const compact = ref(compactLayout.matches)
+const coarsePointer = window.matchMedia('(pointer: coarse)')
+const touchPointer = ref(coarsePointer.matches)
+const sendWithEnter = computed(() => !compact.value && !touchPointer.value)
+function updatePointer(event: MediaQueryListEvent) { touchPointer.value = event.matches }
 const desktopHistory = ref(true)
 const mobileHistory = ref(false)
 const historyDialog = ref<HTMLDialogElement>()
@@ -35,15 +66,34 @@ const historyPanel = ref<HTMLElement>()
 const historyToggle = ref<HTMLButtonElement>()
 const historyVisible = computed(() => compact.value ? mobileHistory.value : desktopHistory.value)
 const historyAction = computed(() => historyVisible.value ? 'Скрыть список диалогов' : 'Показать список диалогов')
-const historyKey = 'budz.history'
+const historyKey = props.focus ? 'budz.history.focus' : 'budz.history'
+let historyScrollLocked = false
+const historyActions = ref<string>()
 try { desktopHistory.value = localStorage.getItem(historyKey) !== 'hidden' } catch { /* Use the default layout. */ }
 const picker = ref<HTMLInputElement>()
 const dialog = ref<HTMLDialogElement>()
-const operation = ref<'rename' | 'delete' | 'edit'>('rename')
+const operation = ref<'rename' | 'delete' | 'move'>('rename')
+const dialogChatId = ref<string>()
 const modalText = ref('')
+const moveDestination = ref('')
+const moveOrigin = ref('')
+const movePending = ref(false)
+const moveError = ref('')
+let moveTrigger: HTMLElement | undefined
+const moveBlocked = computed(() => dialogChatId.value === selectedId.value && Boolean(busy.value || flow.value))
 const copied = ref('')
+let copyTimer: number | undefined
 const feedbackTarget = ref('')
+const messageMore = ref('')
+const navigationAlert = ref<HTMLElement>()
 const composer = ref<HTMLTextAreaElement>()
+let voiceCaret: DraftCaret | undefined
+const quoteOpen = ref(false)
+const quoteId = ref('')
+const quoteText = ref('')
+const unavailableQuoteId = ref('')
+let selectedQuoteText = ''
+let selectedQuoteId = ''
 const chatMenu = ref<HTMLDetailsElement>()
 const navigationPanel = ref<InstanceType<typeof ChatNavigationPanel>>()
 const rulesPanel = ref<InstanceType<typeof ChatRulesPanel>>()
@@ -56,8 +106,7 @@ const projectMark = computed(() => {
   if (project) return { icon: entityIcon(project.icon, 'folder'), color: `var(--${entityColor(project.color, project.id)})` }
 })
 const session = useSession()
-const { resume, resumeRoute, rememberPosition } = useChatResume(computed(() => session.account?.id ?? ''), selectedId, workspaceId, selected, transcript)
-const personas = ref<Persona[]>([])
+watch(() => session.account?.id, stopSpeech, { flush: 'sync' })
 const personasById = computed(() => new Map(personas.value.map((persona) => [persona.id, persona])))
 const activePersona = computed(() => selected.value?.personaId ? personasById.value.get(selected.value.personaId) : undefined)
 const assistantIcon = computed(() => appearance.value.assistantAvatar === 'persona' ? entityIcon(activePersona.value?.icon) : undefined)
@@ -68,8 +117,16 @@ const numberFormat = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }
 const projectsOpen = ref(true)
 const showLatest = ref(false)
 const dragDepth = ref(0)
-const draftLength = computed(() => draft.value.length)
+const draftLength = computed(() => submittedLength(quotedRequest(draft.value, draftQuote.value)))
+const canSubmitDraft = computed(() => Boolean(draft.value.trim()) || (!draftQuote.value && !temporary.value && files.value.length > 0))
 const defaultIdeas = ['Разобрать сложную тему', 'Составить план', 'Поработать над текстом']
+const focusIdeas = [
+  { label: 'Объяснить тему', icon: BookOpen, text: 'Объясни простыми словами тему: ' },
+  { label: 'Составить план', icon: ListChecks, text: 'Помоги составить пошаговый план для задачи: ' },
+  { label: 'Улучшить текст', icon: PenLine, text: 'Предложи, как сделать этот текст яснее: ' },
+  { label: 'Разобрать код', icon: Code, text: 'Объясни, как работает этот код, и укажи, что можно улучшить:\n' },
+]
+const projectHistoryOpen = ref(false)
 const studioSuggestionColors = ['cat-7', 'cat-4'] as const
 const suggestionColors = computed(() => appearance.value.preset === 'studio' ? studioSuggestionColors : categoryColors)
 const chatGroups = computed(() => {
@@ -85,10 +142,6 @@ const chatGroups = computed(() => {
   }
   return groups.filter((group) => group.items.length)
 })
-watch(search, (_, __, onCleanup) => {
-  const timer = window.setTimeout(() => void loadChats(), 250)
-  onCleanup(() => window.clearTimeout(timer))
-})
 const reasons = { too_long: 'Слишком длинно', too_complex: 'Слишком сложно', inaccurate: 'Неточно', wrong_language: 'Не тот язык' }
 const failureMessages: Record<string, string> = {
   ai_timeout: 'Модель не успела ответить.', ai_empty: 'Модель вернула пустой ответ.',
@@ -96,11 +149,13 @@ const failureMessages: Record<string, string> = {
   generation_interrupted: 'Генерация прервалась после перезапуска.', ai_incomplete: 'Поток ответа оборвался.',
   daily_token_limit: 'Для этого сообщения не хватает токенов. Сократите запрос или проверьте бюджет на странице тарифов.',
 }
-const formTitle = computed(() => ({ rename: 'Переименовать диалог', delete: 'Удалить диалог?', edit: 'Изменить сообщение' })[operation.value])
+const dialogTitles = { rename: 'Переименовать диалог', delete: 'Удалить диалог?', move: 'Переместить в проект' }
+const dialogActions = { rename: 'Сохранить', delete: 'Удалить', move: 'Переместить' }
+const formTitle = computed(() => dialogTitles[operation.value])
 
 function updateLatestButton() {
   const element = transcript.value
-  showLatest.value = !!element && element.scrollHeight - element.clientHeight - element.scrollTop > 220
+  showLatest.value = !!element && element.scrollHeight - element.clientHeight - element.scrollTop > (props.focus ? 24 : 220)
   rememberPosition()
 }
 async function jumpToLatest() {
@@ -117,11 +172,8 @@ function openChatSearch() {
   void navigationPanel.value?.show('search')
 }
 
-async function goToMessage(id: string) {
-  error.value = ''
-  try {
-    if (!await jumpToMessage(id)) error.value = 'Сообщение недоступно. Откройте оглавление или повторите поиск.'
-  } catch (reason) { error.value = explain(reason) }
+function focusNavigationAlert() {
+  if (messageNavigationError.value) navigationAlert.value?.focus({ preventScroll: true })
 }
 function dragEnter(event: DragEvent) {
   if (temporary.value || !event.dataTransfer?.types.includes('Files')) return
@@ -145,23 +197,166 @@ function setComposer(text: string) {
   changeDraft(text)
   composer.value?.focus()
 }
-function showDialog(type: typeof operation.value) {
+function appendStartIdea(text: string) {
+  const separator = !draft.value || draft.value.endsWith('\n\n') ? '' : draft.value.endsWith('\n') ? '\n' : '\n\n'
+  const combined = draft.value + separator + text
+  if (combined.length > messageLimit) { toast.warning('В черновике недостаточно места для подсказки.'); return }
+  setComposer(combined)
+  void nextTick(() => composer.value?.setSelectionRange(combined.length, combined.length))
+}
+
+async function recordVoice() {
+  if (voiceOpening.value) return
+  voiceStatus.value = ''
+  stopSpeech()
+  const chat = selectedId.value
+  const workspace = workspaceId.value
+  voiceCaret = { draft: draft.value, offset: composer.value?.selectionEnd ?? draft.value.length }
+  voiceOpening.value = true
+  try {
+    const session = props.voice ?? await props.loadVoice()
+    if (pageActive && chat === selectedId.value && workspace === workspaceId.value) void session?.recorder.start()
+  } catch {
+    if (pageActive) toast.error('Не удалось открыть запись голоса. Обновите страницу и повторите.')
+  } finally { voiceOpening.value = false }
+}
+async function insertVoice() {
+  const voice = props.voice
+  if (!voice?.transcription.text.value.trim()) return
+  const transcript = voice.transcription.text.value
+  const insertion = insertAtCaret(draft.value, transcript, voiceCaret)
+  if (insertion.draft.length > messageLimit || submittedLength(quotedRequest(insertion.draft, draftQuote.value)) > messageLimit) {
+    voice.transcription.error.value = 'Черновик превысит 10 000 символов. Сократите расшифровку перед вставкой.'
+    return
+  }
+  voice.reset()
+  setComposer(insertion.draft)
+  await nextTick()
+  composer.value?.setSelectionRange(insertion.offset, insertion.offset)
+  voiceStatus.value = 'Расшифровка добавлена в черновик'
+}
+async function sendDraft() {
+  if (busy.value || flow.value || !canSubmitDraft.value) return
+  if (!selectedId.value && !await props.confirmVoiceDeparture()) return
+  await send()
+}
+
+function stopSpeech() {
+  speechIntent++
+  speech.value?.stop()
+}
+async function playAnswer(item: Message) {
+  if (microphoneInUse.value) return
+  const request = ++speechIntent
+  const content = transcript.value?.querySelector<HTMLElement>(`#message-${item.id} .message-body .markdown`)
+  if (!content) return
+  try {
+    if (!speech.value) {
+      const module = await import('../use-answer-speech')
+      if (!speechScope.active || request !== speechIntent) return
+      speech.value = speechScope.run(module.useAnswerSpeech)
+    }
+    speech.value?.start(item.id, content, item.rules?.language)
+  } catch { if (pageActive) toast.error('Не удалось загрузить озвучивание. Обновите страницу и повторите.') }
+}
+
+function captureQuoteSelection(item: Message) {
+  const content = transcript.value?.querySelector<HTMLElement>(`#message-${item.id} .message-body .markdown`)
+  selectedQuoteId = item.id
+  selectedQuoteText = content ? quotedSelection(content, window.getSelection()) : ''
+}
+function startQuote(item: Message) {
+  if (selectedQuoteId !== item.id || !selectedQuoteText) captureQuoteSelection(item)
+  const fallback = transcript.value?.querySelector<HTMLElement>(`#message-${item.id} .message-body .markdown`)
+  const first = fallback?.querySelector('p, li, h1, h2, h3, h4, pre')?.textContent?.trim() || item.content.trim()
+  quoteText.value = selectedQuoteText || first.slice(0, quoteLimit).trimEnd()
+  selectedQuoteId = selectedQuoteText = ''
+  quoteId.value = item.id
+  quoteOpen.value = true
+}
+function applyQuote() {
+  const text = quoteText.value.trim()
+  if (!text || text.length > quoteLimit) return
+  setDraftQuote({ messageId: quoteId.value, text })
+  unavailableQuoteId.value = ''
+  quoteOpen.value = false
+  void nextTick(() => composer.value?.focus())
+}
+async function followQuoteSource() {
+  const quote = draftQuote.value
+  if (!quote) return
+  const found = await openMessage(quote.messageId)
+  if (quote === draftQuote.value) unavailableQuoteId.value = found ? '' : quote.messageId
+}
+
+function onComposerKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Enter' || !sendWithEnter.value || event.isComposing || event.keyCode === 229) return
+  if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return
+  event.preventDefault()
+  void sendDraft()
+}
+function showModelOptions() {
+  if (!chatMenu.value) return
+  chatMenu.value.open = true
+  chatMenu.value.querySelector('select')?.focus({ preventScroll: true })
+}
+
+async function showDialog(type: typeof operation.value, target = selected.value, event?: MouseEvent) {
+  if (!target) return
+  if (type === 'move') {
+    if (target.expiresAt) return
+    const row = (event?.currentTarget as HTMLElement | undefined)?.closest('.thread-row')
+    moveTrigger = mobileHistory.value ? historyToggle.value : row
+      ? row.querySelector<HTMLElement>('.thread-actions-toggle') ?? undefined
+      : chatMenu.value?.querySelector('summary') ?? undefined
+    moveOrigin.value = moveDestination.value = target.workspaceId ?? ''
+    moveError.value = ''
+    historyActions.value = undefined
+  }
   if (chatMenu.value) chatMenu.value.open = false
+  closeMobileHistory()
   operation.value = type
-  modalText.value = type === 'rename' ? selected.value?.title ?? '' : lastUser.value?.content ?? ''
+  dialogChatId.value = target.id
+  modalText.value = type === 'rename' ? target.title : ''
+  await nextTick()
   dialog.value?.showModal()
 }
+function restoreMoveFocus() {
+  moveTrigger?.focus()
+  moveTrigger = undefined
+}
 async function applyDialog() {
-  if (operation.value === 'delete') { dialog.value?.close(); await remove(); return }
+  if (operation.value === 'move') {
+    const id = dialogChatId.value
+    const destination = moveDestination.value
+    if (!id || movePending.value || moveBlocked.value || destination === moveOrigin.value) return
+    movePending.value = true
+    moveError.value = ''
+    try {
+      await move(id, destination)
+      dialog.value?.close()
+      toast.success(destination ? 'Диалог перемещён в проект' : 'Диалог перемещён в личные диалоги')
+    } catch (reason) {
+      moveError.value = explain(reason)
+    } finally {
+      movePending.value = false
+    }
+    return
+  }
+  if (operation.value === 'delete') { dialog.value?.close(); await remove(dialogChatId.value); return }
   const text = modalText.value.trim()
-  if (!text) return
-  const success = operation.value === 'rename' ? await patch({ title: text })
-    : lastUser.value ? await revise(lastUser.value, text) : false
-  if (success) dialog.value?.close()
+  if (text && await patch({ title: text }, dialogChatId.value)) dialog.value?.close()
 }
 async function copy(message: Message) {
-  try { await navigator.clipboard.writeText(message.content); copied.value = message.id; setTimeout(() => { copied.value = '' }, 1400) }
-  catch { error.value = 'Не удалось скопировать ответ.' }
+  try {
+    await navigator.clipboard.writeText(message.content)
+    copied.value = message.id
+    window.clearTimeout(copyTimer)
+    copyTimer = window.setTimeout(() => { copied.value = '' }, 1400)
+    if (message.role === 'user') toast.success('Скопировано')
+  } catch {
+    error.value = message.role === 'user' ? 'Не удалось скопировать сообщение.' : 'Не удалось скопировать ответ.'
+  }
 }
 function addedFiles(event: Event) {
   const input = event.target as HTMLInputElement
@@ -169,12 +364,6 @@ function addedFiles(event: Event) {
   input.value = ''
 }
 function setModel(event: Event) { model.value = (event.target as HTMLSelectElement).value }
-
-function moveChat(event: Event) {
-  const workspace = (event.target as HTMLSelectElement).value
-  if (chatMenu.value) chatMenu.value.open = false
-  void move(workspace)
-}
 
 function editProject() {
   if (!currentWorkspace.value) return
@@ -206,14 +395,38 @@ function time(value: string) {
   return new Intl.DateTimeFormat('ru', { hour: '2-digit', minute: '2-digit' }).format(new Date(value))
 }
 
+function releaseHistoryScroll() {
+  if (!historyScrollLocked) return
+  historyScrollLocked = false
+  unlockScroll()
+}
+function onHistoryClosed() {
+  if (historyDialog.value?.open) return
+  mobileHistory.value = false
+  historyActions.value = undefined
+  releaseHistoryScroll()
+}
+function trapHistoryTab(event: KeyboardEvent) {
+  if (compact.value && historyPanel.value) trapTab(event, historyPanel.value)
+}
+
 function setHistory(visible: boolean) {
   if (compact.value) {
-    if (visible) historyDialog.value?.showModal()
-    else historyDialog.value?.close()
-    mobileHistory.value = visible
+    if (visible) {
+      historyDialog.value?.showModal()
+      mobileHistory.value = !!historyDialog.value?.open
+      if (mobileHistory.value && !historyScrollLocked) {
+        lockScroll()
+        historyScrollLocked = true
+      }
+    } else {
+      historyDialog.value?.close()
+      onHistoryClosed()
+    }
     return
   }
   desktopHistory.value = visible
+  if (!visible) historyActions.value = undefined
   try { localStorage.setItem(historyKey, visible ? 'shown' : 'hidden') } catch { /* Keep the choice for this page. */ }
 }
 async function toggleHistory() {
@@ -231,14 +444,15 @@ function hideHistory() {
 function closeMobileHistory() {
   if (compact.value && mobileHistory.value) hideHistory()
 }
-function startNewChat() {
+async function startNewChat() {
   closeMobileHistory()
+  if (!await props.confirmVoiceDeparture()) return
   void newChat()
 }
 function resizeLayout(event: MediaQueryListEvent) {
   historyDialog.value?.close()
+  onHistoryClosed()
   compact.value = event.matches
-  mobileHistory.value = false
 }
 function resizeComposer() {
   const input = composer.value
@@ -251,14 +465,27 @@ function resizeComposer() {
 function resizeViewport() {
   const viewport = window.visualViewport
   viewportHeight.value = viewport?.scale === 1 ? `${viewport.height}px` : undefined
+  if (!selectedId.value && composer.value === document.activeElement) {
+    void nextTick(() => composer.value?.closest('form')?.scrollIntoView({ block: 'nearest' }))
+  }
 }
 
 let sizeObserver: ResizeObserver | undefined
-watch(draft, resizeComposer, { flush: 'post' })
-watch(selectedId, () => { showLatest.value = false })
+watch([draft, viewportHeight], resizeComposer, { flush: 'post' })
+watch(selectedId, () => {
+  stopSpeech()
+  showLatest.value = false
+  messageMore.value = ''
+  quoteOpen.value = false
+  selectedQuoteId = selectedQuoteText = ''
+  unavailableQuoteId.value = ''
+})
+watch(workspaceId, () => { projectHistoryOpen.value = false })
+watch(messageNavigationError, focusNavigationAlert, { flush: 'post' })
 onMounted(() => {
-  void api<Persona[]>('/personas').then((items) => { personas.value = items }).catch(() => { /* Use the fallback colors. */ })
+  focusNavigationAlert()
   compactLayout.addEventListener('change', resizeLayout)
+  coarsePointer.addEventListener('change', updatePointer)
   window.visualViewport?.addEventListener('resize', resizeViewport)
   resizeViewport()
   resizeComposer()
@@ -272,7 +499,12 @@ onMounted(() => {
   sizeObserver.observe(composer.value)
 })
 onUnmounted(() => {
+  pageActive = false
+  speechScope.stop()
+  releaseHistoryScroll()
+  window.clearTimeout(copyTimer)
   compactLayout.removeEventListener('change', resizeLayout)
+  coarsePointer.removeEventListener('change', updatePointer)
   window.visualViewport?.removeEventListener('resize', resizeViewport)
   sizeObserver?.disconnect()
 })
@@ -281,9 +513,9 @@ onUnmounted(() => {
 <template>
   <section class="workspace" :class="{ 'history-open': historyVisible }" :style="{ '--chat-viewport-height': viewportHeight }" aria-label="Диалоги Budz">
     <dialog id="mobile-chat-history" ref="historyDialog" class="mobile-history" aria-label="История диалогов"
-      @close="mobileHistory = !!historyDialog?.open" @click.self="historyDialog?.close()"></dialog>
+      @close="onHistoryClosed" @click.self="hideHistory"></dialog>
     <Teleport to="#mobile-chat-history" :disabled="!compact || !mobileHistory" defer>
-      <aside v-show="historyVisible" id="chat-history" ref="historyPanel" class="history" tabindex="-1" aria-label="Боковая панель диалогов" @keydown.esc.stop.prevent="hideHistory">
+      <aside v-show="historyVisible" id="chat-history" ref="historyPanel" class="history" tabindex="-1" aria-label="Боковая панель диалогов" @keydown.esc.stop.prevent="hideHistory" @keydown.tab="trapHistoryTab">
         <div class="history-tools">
           <div class="history-toolbar">
             <UiButton class="history-new" variant="secondary" :icon="Plus" block @click="startNewChat">Новый диалог</UiButton>
@@ -314,13 +546,25 @@ onUnmounted(() => {
         <nav aria-label="История диалогов" class="thread-list">
           <section v-for="group in chatGroups" :key="group.title" class="thread-group" :aria-label="group.title">
             <h3>{{ group.title }}</h3>
-            <div v-for="chat in group.items" :key="chat.id" class="thread-row">
-              <RouterLink :to="chatRoute(chat)" @click="closeMobileHistory">
+            <div v-for="chat in group.items" :key="chat.id" class="thread-row" :class="{ 'with-pin': !focus }">
+              <RouterLink :to="chatRoute(chat)" :title="focus ? chat.title : undefined" @click="closeMobileHistory">
                 <span class="persona-dot" :style="{ '--history-entity-color': `var(--${personaColor(chat.personaId)})` }" aria-hidden="true"></span>
                 <span class="thread-title"><span>{{ chat.title }}</span><small v-if="chat.workspaceId && projectNames.has(chat.workspaceId)">{{ projectNames.get(chat.workspaceId) }}</small></span>
               </RouterLink>
-              <UiIconButton class="thread-pin" :icon="chat.isPinned ? PinOff : Pin" :label="chat.isPinned ? 'Открепить диалог' : 'Закрепить диалог'"
+              <button v-if="focus || workspaces.length" type="button" class="chat-control thread-actions-toggle"
+                :aria-label="`Действия диалога ${chat.title}`" :aria-expanded="historyActions === chat.id"
+                :aria-controls="historyActions === chat.id ? `thread-actions-${chat.id}` : undefined"
+                @click="historyActions = historyActions === chat.id ? undefined : chat.id">
+                <Ellipsis aria-hidden="true" />
+              </button>
+              <UiIconButton v-if="!focus" class="thread-pin" :icon="chat.isPinned ? PinOff : Pin" :label="chat.isPinned ? 'Открепить диалог' : 'Закрепить диалог'"
                 size="sm" @click="patch({ isPinned: !chat.isPinned }, chat.id)" />
+              <div v-if="historyActions === chat.id" :id="`thread-actions-${chat.id}`" class="thread-actions">
+                <button v-if="focus" type="button" @click="showDialog('rename', chat)">Переименовать</button>
+                <button v-if="focus" type="button" @click="patch({ isPinned: !chat.isPinned }, chat.id)">{{ chat.isPinned ? 'Открепить' : 'Закрепить' }}</button>
+                <button v-if="workspaces.length" type="button" aria-haspopup="dialog" @click="showDialog('move', chat, $event)">Переместить в проект</button>
+                <button v-if="focus" type="button" class="danger-text" @click="showDialog('delete', chat)">Удалить</button>
+              </div>
             </div>
           </section>
           <p v-if="!chats.length" class="muted">Диалогов пока нет.</p>
@@ -331,19 +575,29 @@ onUnmounted(() => {
 
     <div class="conversation">
       <header class="conversation-header">
-        <button ref="historyToggle" type="button" class="chat-control history-toggle" :aria-label="historyAction" :title="historyAction"
-          :aria-expanded="historyVisible" :aria-haspopup="compact ? 'dialog' : undefined"
-          :aria-controls="compact ? 'mobile-chat-history' : 'chat-history'" @click="toggleHistory">
-          <PanelLeft aria-hidden="true" />
-        </button>
-        <div class="conversation-heading">
+        <Teleport :to="focusHistoryTarget ?? undefined" :disabled="!focus || !focusHistoryTarget">
+          <button ref="historyToggle" type="button" class="chat-control history-toggle" :aria-label="historyAction" :title="historyAction"
+            :aria-expanded="historyVisible" :aria-haspopup="compact ? 'dialog' : undefined"
+            :aria-controls="compact ? 'mobile-chat-history' : 'chat-history'" @click="toggleHistory">
+            <PanelLeft aria-hidden="true" />
+          </button>
+        </Teleport>
+        <div v-if="focus && selectedId" class="conversation-heading focus-conversation-heading">
+          <p v-if="temporary" class="chat-scope-name">Временный диалог</p>
+          <p v-else-if="currentWorkspace" class="chat-scope-name">
+            <component :is="projectMark?.icon" :style="{ '--project-mark': projectMark?.color }" aria-hidden="true" />{{ currentWorkspace.name }}
+          </p>
+          <h1 :title="selected?.title">{{ selected?.title ?? 'Диалог' }}</h1>
+          <p class="status-line"><span :class="{ online: linked }"></span>{{ linked ? 'Подключено' : 'Подключаемся к чату' }}</p>
+        </div>
+        <div v-else class="conversation-heading">
           <span>{{ selected?.title ?? currentWorkspace?.name ?? 'Диалоги' }}</span>
         </div>
         <div class="conversation-tools">
         <button v-if="selectedId" type="button" class="chat-control" aria-label="Оглавление" title="Оглавление"
           aria-haspopup="dialog" @click="navigationPanel?.show('outline')"><BookOpen aria-hidden="true" /></button>
         <details ref="chatMenu" class="chat-menu">
-          <summary aria-label="Настройки диалога"><Ellipsis aria-hidden="true" /></summary>
+          <summary :aria-label="focus ? 'Действия диалога' : 'Настройки диалога'"><Ellipsis aria-hidden="true" /></summary>
           <div class="chat-menu-panel">
             <button type="button" class="text-button" aria-haspopup="dialog" @click="showRules">Правила</button>
             <button v-if="selectedId" type="button" class="text-button" aria-haspopup="dialog" @click="openChatSearch">Поиск по беседе</button>
@@ -352,12 +606,8 @@ onUnmounted(() => {
             </select></label>
             <button v-if="currentWorkspace && selectedId" class="text-button" @click="editProject">Настройки проекта</button>
             <template v-if="selectedId">
-              <label v-if="!temporary && workspaces.length" :key="workspaceId + ':' + selectedId">Переместить диалог
-                <select :value="workspaceId" aria-label="Переместить диалог" :disabled="!!flow" @change="moveChat">
-                  <option value="">Личные диалоги</option>
-                  <option v-for="space in workspaces" :key="space.id" :value="space.id">{{ space.name }}</option>
-                </select>
-              </label>
+              <button v-if="!temporary && workspaces.length" type="button" class="text-button" aria-haspopup="dialog"
+                @click="showDialog('move', selected, $event)">Переместить в проект</button>
               <RouterLink v-if="!temporary" class="text-button" :to="{ path: '/data', query: { chat: selectedId, ...workspaceQuery } }">Экспорт диалога</RouterLink>
               <button v-if="!temporary" class="text-button" @click="patch({ isPinned: !selected?.isPinned })">{{ selected?.isPinned ? 'Открепить' : 'Закрепить' }}</button>
               <button class="text-button" @click="showDialog('rename')">Переименовать</button>
@@ -370,13 +620,21 @@ onUnmounted(() => {
 
       <div class="chat-content" :class="{ 'is-start': !selectedId }">
         <div v-if="!selectedId" class="chat-start">
-          <p v-if="currentWorkspace" class="chat-scope-name">
+          <template v-if="focus">
+            <p v-if="currentWorkspace" class="chat-scope-name">
+              <component :is="projectMark?.icon" :style="{ '--project-mark': projectMark?.color }" aria-hidden="true" />Проект
+            </p>
+            <h1 v-if="currentWorkspace">{{ currentWorkspace.name }}</h1>
+            <h1 v-else>С чего начнём<span>?</span></h1>
+          </template>
+          <p v-if="!focus && currentWorkspace" class="chat-scope-name">
             <component :is="projectMark?.icon" :style="{ '--project-mark': projectMark?.color }" aria-hidden="true" />{{ currentWorkspace.name }}
           </p>
-          <h1>Что хотите<br class="start-break"> разобрать<span>?</span></h1>
+          <h1 v-if="!focus">Что хотите<br class="start-break"> разобрать<span>?</span></h1>
         </div>
-        <div v-show="selectedId" ref="transcript" class="transcript" aria-label="Сообщения" @scroll.passive="updateLatestButton">
-          <header v-if="selectedId" class="reading-heading">
+        <div v-show="selectedId" :ref="bindTranscript" class="transcript" :role="focus ? 'region' : undefined"
+          :tabindex="focus ? 0 : undefined" aria-label="Сообщения" @scroll.passive="updateLatestButton">
+          <header v-if="selectedId && !focus" class="reading-heading">
             <p v-if="selected?.expiresAt" class="chat-scope-name" :title="new Date(selected.expiresAt).toLocaleString('ru-RU')">Временный диалог</p>
             <p v-else-if="currentWorkspace" class="chat-scope-name">
               <component :is="projectMark?.icon" :style="{ '--project-mark': projectMark?.color }" aria-hidden="true" />{{ currentWorkspace.name }}
@@ -390,7 +648,7 @@ onUnmounted(() => {
             <button v-for="idea in defaultIdeas" :key="idea" type="button" class="secondary" @click="setComposer(idea)">{{ idea }}</button>
           </div>
           <article v-for="item in messages" :id="`message-${item.id}`" :key="item.id" class="message message-frame"
-            :class="[item.role, { 'message-target': highlightedId === item.id }]" tabindex="-1"
+            :class="[item.role, { 'message-target': highlightedId === item.id, 'actions-expanded': messageMore === item.id }]" tabindex="-1"
             :data-reading-message="item.status === 'pending' || item.status === 'streaming' ? undefined : item.id">
             <div class="message-meta">
               <UiAvatar v-if="item.role === 'user'" :name="session.account?.username ?? 'Вы'" size="sm" decorative />
@@ -398,6 +656,9 @@ onUnmounted(() => {
                 :icon="assistantIcon" :color="personaColor(activePersona?.id)" size="sm" decorative />
               <strong>{{ item.role === 'user' ? 'Вы' : 'Budz' }}</strong>
               <time :datetime="item.createdAt">{{ time(item.createdAt) }}</time>
+              <UiIconButton v-if="item.role === 'user' && item.content && item.status !== 'pending' && item.status !== 'streaming'"
+                class="message-copy" size="sm" :icon="copied === item.id ? Check : Copy"
+                label="Копировать сообщение" @click="copy(item)" />
               <UiIconButton v-if="selected && !temporary && item.role === 'assistant' && item.content &&
                 item.status !== 'pending' && item.status !== 'streaming'" class="message-bookmark" size="sm" :icon="Bookmark"
                 :disabled="bookmarkPending.has(item.id)" :pressed="!!item.isBookmarked"
@@ -407,7 +668,8 @@ onUnmounted(() => {
               </UiIconButton>
             </div>
             <div class="message-body">
-              <ChatMarkdown v-if="item.content" :content="item.content" :class="{ streaming: item.status === 'streaming' }" />
+              <ChatMarkdown v-if="item.content" :content="item.content" :answer="item.role === 'assistant'"
+                :class="{ streaming: item.status === 'streaming' }" />
               <p v-if="!item.content && (item.status === 'pending' || item.status === 'streaming')" class="typing muted" role="status">
                 Budz печатает <span aria-hidden="true"><i></i><i></i><i></i></span>
               </p>
@@ -417,16 +679,34 @@ onUnmounted(() => {
                 <li v-for="attachment in item.attachments" :key="attachment.id"><button class="text-button" @click="download(attachment)">Скачать {{ attachment.fileName }}</button></li>
               </ul>
             </div>
-            <div v-if="item.status !== 'pending' && item.status !== 'streaming'" class="message-actions">
-              <UiIconButton v-if="item.rules" :icon="ListChecks" label="Правила ответа" @click="rulesPanel?.show(item.rules)" />
+            <div v-if="item.role === 'assistant' && item.status !== 'pending' && item.status !== 'streaming'" class="message-actions">
+              <UiIconButton v-if="!focus && item.rules" :icon="ListChecks" label="Правила ответа" @click="rulesPanel?.show(item.rules)" />
               <UiIconButton v-if="item.content" :icon="copied === item.id ? Check : Copy" :label="copied === item.id ? 'Скопировано' : 'Копировать'" @click="copy(item)" />
-              <UiIconButton v-if="item.id === lastUser?.id && !flow" :icon="Pencil" label="Изменить" @click="showDialog('edit')" />
-              <UiIconButton v-if="item.id === lastAnswer?.id && !flow" :icon="RotateCcw" label="Повторить" :disabled="busy" @click="revise(item)" />
-              <template v-if="!temporary && item.role === 'assistant' && item.status === 'completed'">
-                <UiIconButton :icon="ThumbsUp" label="Полезно" :pressed="item.rating === 1" @click="rate(item, 1)" />
-                <UiIconButton :icon="ThumbsDown" label="Не помогло" :pressed="item.rating === -1" @click="feedbackTarget = feedbackTarget === item.id ? '' : item.id" />
+              <button v-if="item.status === 'completed' && item.content" type="button" class="chat-control message-quote"
+                aria-label="Цитировать" title="Цитировать" aria-haspopup="dialog"
+                @pointerdown="captureQuoteSelection(item)" @click="startQuote(item)"><Quote aria-hidden="true" /></button>
+              <UiIconButton v-if="item.id === lastAnswer?.id && !flow" :icon="RotateCcw" label="Повторить" :disabled="busy" @click="regenerate(item)" />
+              <template v-if="item.status === 'completed' && item.content">
+                <UiIconButton v-if="spokenId !== item.id" :icon="Volume2" label="Озвучить" :disabled="microphoneInUse" @click="playAnswer(item)" />
+                <template v-else>
+                  <UiIconButton :icon="speechPaused ? Play : Pause" :label="speechPaused ? 'Продолжить' : 'Пауза'" @click="speech?.togglePause()" />
+                  <UiIconButton :icon="Square" label="Остановить озвучивание" @click="stopSpeech" />
+                </template>
+              </template>
+              <button v-if="focus && (item.rules || (!temporary && item.status === 'completed'))" type="button" class="chat-control message-more"
+                aria-label="Ещё" :aria-expanded="messageMore === item.id"
+                @click="messageMore = messageMore === item.id ? '' : item.id">
+                <Ellipsis aria-hidden="true" />
+              </button>
+              <UiIconButton v-if="focus && item.rules" class="answer-secondary" :icon="ListChecks" label="Правила ответа" @click="rulesPanel?.show(item.rules)" />
+              <template v-if="!temporary && item.status === 'completed'">
+                <UiIconButton class="answer-secondary" :icon="ThumbsUp" label="Полезно" :pressed="item.rating === 1" @click="rate(item, 1)" />
+                <UiIconButton class="answer-secondary" :icon="ThumbsDown" label="Не помогло" :pressed="item.rating === -1" @click="feedbackTarget = feedbackTarget === item.id ? '' : item.id" />
               </template>
             </div>
+            <p v-if="speechNotice?.id === item.id" class="muted" role="status">
+              {{ speechNotice.message }}
+            </p>
             <div v-if="feedbackTarget === item.id" class="feedback-reasons" aria-label="Причина оценки">
               <button v-for="(label, code) in reasons" :key="code" class="secondary" @click="rate(item, -1, code); feedbackTarget = ''">{{ label }}</button>
               <button class="text-button" @click="rate(item, -1); feedbackTarget = ''">Без причины</button>
@@ -440,6 +720,11 @@ onUnmounted(() => {
         </div>
 
         <div class="composer-wrap">
+          <div v-if="messageNavigationError" ref="navigationAlert" class="notice danger navigation-alert" role="alert" tabindex="-1">
+            <p>{{ messageNavigationError }}</p>
+            <button type="button" class="text-button" @click="returnToConversation">Вернуться к беседе</button>
+            <button type="button" class="text-button" @click="navigationPanel?.show('search', true)">Повторить поиск</button>
+          </div>
           <UiButton v-if="selectedId && (showLatest || nextAfter)" class="jump-latest" size="sm" :icon="ArrowDown"
             :disabled="loadingPage" @click="jumpToLatest">К последнему сообщению</UiButton>
           <p v-if="error" class="notice danger" role="alert">{{ error }}</p>
@@ -448,29 +733,81 @@ onUnmounted(() => {
             <button class="text-button" @click="decide(true)">Применить</button>
             <button class="text-button" @click="decide(false)">Скрыть</button>
           </div>
-          <form class="composer" :class="{ 'text-only': temporary, dragging: dragDepth > 0 }" @submit.prevent="send"
+          <form class="composer" :class="{ 'text-only': temporary, dragging: dragDepth > 0 }" @submit.prevent="sendDraft"
             @dragenter="dragEnter" @dragover="dragOver" @dragleave="dragDepth = Math.max(0, dragDepth - 1)" @drop.prevent="dropFiles">
+            <div v-if="draftRestored || draftHadFiles || draftConflict" class="draft-status">
+              <p v-if="draftRestored" class="muted" role="status">Черновик восстановлен</p>
+              <p v-if="draftHadFiles" class="muted">Прикрепите ранее выбранные файлы повторно.</p>
+              <div v-if="draftConflict" class="draft-conflict">
+                <p role="status">В другой вкладке изменилась версия черновика.</p>
+                <button type="button" class="text-button" :disabled="busy" @click="useExternalDraft">Загрузить версию из другой вкладки</button>
+                <button type="button" class="text-button" :disabled="busy" @click="keepOwnDraft">Оставить мою версию</button>
+              </div>
+            </div>
             <span v-if="dragDepth > 0" class="drop-label" role="status">Отпустите, чтобы прикрепить</span>
-            <input ref="picker" class="sr-only" type="file" tabindex="-1" aria-label="Выбор файла" multiple accept=".txt,.md,.pdf,.docx,.png,.jpg,.jpeg" @change="addedFiles">
-            <button v-if="!temporary" type="button" class="composer-attach" aria-label="Прикрепить" title="Прикрепить" @click="picker?.click()"><Paperclip aria-hidden="true" /></button>
+            <input v-if="!temporary" ref="picker" class="sr-only" type="file" tabindex="-1" aria-label="Выбор файла" multiple :accept="attachmentExtensions.join(',')" @change="addedFiles">
+            <button v-if="!focus && !temporary" type="button" class="composer-attach" aria-label="Прикрепить" title="Прикрепить" :disabled="busy" @click="picker?.click()"><Paperclip aria-hidden="true" /></button>
             <label class="sr-only" for="composer">Сообщение для Budz</label>
-            <textarea id="composer" ref="composer" :value="draft" :placeholder="selectedId ? 'Продолжите мысль…' : 'Напишите вопрос или мысль…'" rows="1" maxlength="10000"
-              @input="changeDraft(($event.target as HTMLTextAreaElement).value)" @keydown.ctrl.enter.prevent="send"></textarea>
-            <button v-if="flow" type="button" class="primary composer-action stop-button" aria-label="Остановить" title="Остановить" @click="stop"><Square aria-hidden="true" /></button>
-            <button v-else type="submit" class="primary composer-action send-button" aria-label="Отправить" title="Отправить" :disabled="busy || (!draft.trim() && !files.length)"><Send aria-hidden="true" /><span v-if="!selectedId">Отправить</span></button>
+            <textarea id="composer" ref="composer" :value="draft" rows="1" :maxlength="messageLimit"
+              :placeholder="selectedId ? 'Продолжите мысль…' : focus ? 'Напишите вопрос или запишите голос…' : 'Напишите вопрос или мысль…'"
+              :enterkeyhint="sendWithEnter ? 'send' : 'enter'"
+              @input="changeDraft(($event.target as HTMLTextAreaElement).value)" @keydown="onComposerKeydown"></textarea>
+            <div class="composer-actions">
+              <div v-if="focus" class="composer-tools">
+                <button v-if="!temporary" type="button" class="composer-attach" aria-label="Прикрепить" title="Прикрепить" :disabled="busy" @click="picker?.click()"><Paperclip aria-hidden="true" /></button>
+                <button type="button" class="composer-attach" aria-label="Настройки модели" title="Настройки модели" @click="showModelOptions"><SlidersHorizontal aria-hidden="true" /></button>
+              </div>
+              <div class="composer-send-controls">
+              <button v-if="voicePhase === 'idle'" type="button" class="composer-attach voice-trigger" aria-label="Записать голос"
+                title="Записать голос" :aria-busy="voiceOpening || undefined" @click="recordVoice"><Mic aria-hidden="true" /></button>
+              <button v-if="flow" type="button" class="primary composer-action stop-button" aria-label="Остановить" title="Остановить" @click="stop"><Square aria-hidden="true" /></button>
+              <button v-else type="submit" class="primary composer-action send-button" aria-label="Отправить" title="Отправить" :disabled="busy || !canSubmitDraft"><Send aria-hidden="true" /><span v-if="!selectedId">Отправить</span></button>
+              </div>
+            </div>
+            <component :is="voice.panel" v-if="voice" :recorder="voice.recorder" :transcription="voice.transcription"
+              @insert="insertVoice" />
+            <span class="sr-only" role="status">{{ voiceStatus }}</span>
+            <div v-if="draftQuote" class="draft-status draft-quote" role="group" aria-label="Цитата к сообщению">
+              <blockquote>{{ draftQuote.text }}</blockquote>
+              <div class="actions">
+                <RouterLink :to="{ path: `/chats/${selectedId}`, query: { ...workspaceQuery, at: draftQuote.messageId } }" custom v-slot="{ href }">
+                  <a :href="href" class="text-button" @click.prevent="followQuoteSource">К исходному ответу</a>
+                </RouterLink>
+                <button type="button" class="text-button" @click="setDraftQuote()">Убрать цитату</button>
+              </div>
+              <p v-if="unavailableQuoteId === draftQuote.messageId" class="muted" role="status">Источник недоступен. Текст цитаты сохранён.</p>
+              <p v-if="!draft.trim()" class="muted">Добавьте вопрос или пояснение к цитате.</p>
+            </div>
+            <button v-if="draft || draftQuote || files.length || draftHadFiles" class="text-button clear-draft" type="button" :disabled="busy"
+              @click="clearDraft">Очистить черновик</button>
             <small v-if="draftLength >= 8000" class="composer-count">{{ numberFormat.format(draftLength) }} / 10 000 символов · ≈ {{ numberFormat.format(Math.ceil(draftLength / 4)) }} токенов</small>
-            <ul v-if="files.length" class="file-list picked">
+            <ul v-if="!temporary && files.length" class="file-list picked" aria-label="Приложенные файлы">
               <li v-for="(file, index) in files" :key="`${file.name}-${index}`">
                 <component :is="file.type.startsWith('image/') ? FileImage : FileText" class="project-icon" aria-hidden="true" />
-                <span>{{ file.name }}</span><small>{{ formatFileSize(file.size) }}</small>
-                <UiIconButton :icon="X" size="sm" :label="`Удалить ${file.name}`" @click="removeFile(index)" />
+                <span class="picked-file"><span>{{ file.name }}</span><small>{{ formatFileSize(file.size) }}</small>
+                  <small v-if="fileErrors.has(file)" class="picked-error" role="alert">{{ fileErrors.get(file) }}</small>
+                </span>
+                <UiIconButton :icon="X" size="sm" :label="`Удалить ${file.name}`" :disabled="busy" @click="removeFile(index)" />
               </li>
             </ul>
+            <div v-if="!temporary && rejectedFiles.length" class="rejected-files" role="alert">
+              <p v-for="(item, index) in rejectedFiles" :key="index"><strong>{{ item.name }}</strong> — {{ item.message }}</p>
+            </div>
           </form>
         </div>
         <div v-if="!selectedId" class="chat-start-extra">
+          <div v-if="focus" class="start-choices focus-start-ideas" aria-label="Примеры запросов">
+            <UiButton v-for="idea in focusIdeas" :key="idea.label" variant="secondary" size="sm" :icon="idea.icon"
+              @click="appendStartIdea(idea.text)">{{ idea.label }}</UiButton>
+          </div>
+          <div v-if="focus && currentWorkspace" class="focus-project-actions">
+            <UiButton variant="ghost" size="sm" :icon="MessagesSquare" :aria-expanded="projectHistoryOpen"
+              aria-controls="project-history" @click="projectHistoryOpen = !projectHistoryOpen">Диалоги проекта</UiButton>
+            <UiButton variant="ghost" size="sm" :icon="Settings" @click="editProject">Настройки проекта</UiButton>
+          </div>
           <RouterLink v-if="resume && resumeRoute" :to="resumeRoute" class="resume-chat">
-            <span class="bookmark-dot" aria-hidden="true"></span>
+            <span v-if="focus" class="focus-resume-icon"><Bookmark aria-hidden="true" /></span>
+            <span v-else class="bookmark-dot" aria-hidden="true"></span>
             <span>
               <small>Продолжить</small>
               <strong>{{ resume.chat.title }}</strong>
@@ -479,10 +816,12 @@ onUnmounted(() => {
               </span>
               <span v-if="resume.text" class="resume-snippet">{{ resume.text }}</span>
             </span>
-            <BookOpen aria-hidden="true" />
+            <component :is="focus ? ArrowRight : BookOpen" aria-hidden="true" />
           </RouterLink>
-          <section v-if="currentWorkspace" class="project-overview stack" aria-labelledby="project-conversations">
-            <header class="project-overview-heading">
+          <section v-if="currentWorkspace" v-show="!focus || projectHistoryOpen" id="project-history" class="project-overview stack"
+            aria-labelledby="project-conversations">
+            <h2 v-if="focus" id="project-conversations" class="sr-only">Диалоги проекта</h2>
+            <header v-else class="project-overview-heading">
               <h2 id="project-conversations">Диалоги проекта</h2>
               <div class="actions">
                 <button type="button" class="secondary" @click="editProject">Настройки проекта</button>
@@ -498,27 +837,54 @@ onUnmounted(() => {
             <p v-if="projectLoading" class="muted" role="status">Загружаем диалоги проекта…</p>
             <button v-else-if="projectHasMore" type="button" class="plain-button self-start" @click="loadProjectChats(false)">Ещё диалоги проекта</button>
           </section>
-          <div v-else-if="!resume" class="start-choices" aria-label="Примеры запросов">
+          <div v-else-if="!focus && !resume" class="start-choices" aria-label="Примеры запросов">
             <button v-for="idea in defaultIdeas" :key="idea" type="button" class="secondary" @click="setComposer(idea)">{{ idea }}</button>
           </div>
         </div>
       </div>
     </div>
 
-    <dialog ref="dialog" aria-labelledby="chat-dialog-title">
+    <dialog ref="dialog" aria-labelledby="chat-dialog-title" @cancel="movePending && $event.preventDefault()" @close="restoreMoveFocus">
       <form class="stack" @submit.prevent="applyDialog">
         <h2 id="chat-dialog-title">{{ formTitle }}</h2>
         <p v-if="operation === 'delete'">Переписка и файлы этого диалога будут удалены.</p>
-        <label v-else-if="operation === 'rename'">Название <input v-model="modalText" maxlength="120" required autofocus></label>
-        <label v-else>Сообщение <textarea v-model="modalText" maxlength="10000" rows="5" required autofocus></textarea></label>
+        <template v-else-if="operation === 'move'">
+          <label>Проект назначения
+            <select v-model="moveDestination" :disabled="movePending" autofocus @change="moveError = ''">
+              <option value="">Личные диалоги</option>
+              <option v-for="space in workspaces" :key="space.id" :value="space.id">{{ space.name }}</option>
+            </select>
+          </label>
+          <p v-if="moveBlocked" class="muted" role="status">Дождитесь завершения ответа перед переносом.</p>
+          <p v-if="moveError" class="notice danger" role="alert">{{ moveError }}</p>
+        </template>
+        <label v-else>Название <input v-model="modalText" maxlength="120" required autofocus></label>
         <div class="actions">
-          <button type="button" class="secondary" @click="dialog?.close()">Отмена</button>
-          <button type="submit" :class="operation === 'delete' ? 'danger-button' : 'primary'" :disabled="busy">{{ operation === 'delete' ? 'Удалить' : 'Сохранить' }}</button>
+          <button type="button" class="secondary" :disabled="movePending" @click="dialog?.close()">Отмена</button>
+          <button type="submit" :class="operation === 'delete' ? 'danger-button' : 'primary'"
+            :disabled="operation === 'move' ? movePending || moveBlocked || moveDestination === moveOrigin : busy">
+            {{ movePending ? 'Перемещаем…' : dialogActions[operation] }}
+          </button>
         </div>
       </form>
     </dialog>
     <ChatRulesPanel ref="rulesPanel" :chat-id="selectedId" :workspace-id="workspaceId" :last="lastAnswer?.rules" />
-    <ChatNavigationPanel ref="navigationPanel" :chat-id="selectedId" :temporary="temporary" @jump="goToMessage" />
+    <ChatNavigationPanel ref="navigationPanel" :chat-id="selectedId" :temporary="temporary" @jump="openMessage" />
+    <UiDialog v-model="quoteOpen" title="Цитировать ответ" size="sm">
+      <form id="chat-quote-form" class="stack" @submit.prevent="applyQuote">
+        <label>Фрагмент ответа <textarea v-model="quoteText" rows="4" autofocus /></label>
+        <p class="muted" role="status">
+          {{ quoteText.trim().length }} / {{ quoteLimit }} символов.
+          <span v-if="quoteText.trim().length > quoteLimit">Сократите фрагмент перед добавлением.</span>
+        </p>
+      </form>
+      <template #footer>
+        <UiButton @click="quoteOpen = false">Отмена</UiButton>
+        <UiButton variant="primary" type="submit" form="chat-quote-form" :disabled="!quoteText.trim() || quoteText.trim().length > quoteLimit">
+          Добавить цитату
+        </UiButton>
+      </template>
+    </UiDialog>
     <ProjectEditor ref="projectEditor" @saved="projectSaved" @removed="projectRemoved" />
   </section>
 </template>
@@ -574,8 +940,23 @@ onUnmounted(() => {
 .thread-title > span, .thread-title small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .thread-title small, .history .muted, .history .plain-button { color: var(--text-muted); }
 .history .plain-button:hover { background: var(--panel-active); }
+.thread-actions-toggle { margin-inline-end: 2px; }
+.thread-row a[aria-current] .thread-title > * {
+  overflow: visible; white-space: normal; overflow-wrap: anywhere;
+}
+.thread-actions {
+  grid-column: 1 / -1; display: grid; gap: 1px; padding: var(--space-1);
+  background: var(--sheet); border: 1px solid var(--border); border-radius: var(--radius-md);
+}
+.thread-actions button {
+  min-height: 40px; padding-inline: var(--space-2); text-align: start;
+  background: transparent; border: 0; border-radius: var(--radius-sm);
+}
+.thread-actions button:hover { background: var(--panel-active); }
+.thread-row.with-pin:has(.thread-actions-toggle) { grid-template-columns: minmax(0, 1fr) auto auto; }
 .thread-pin { justify-self: end; margin-inline-end: 2px; }
 @media (hover: hover) {
+  .thread-row:not(:hover, :focus-within) .thread-actions-toggle[aria-expanded="false"] { opacity: 0; }
   .thread-row:not(:hover, :focus-within) .thread-pin { opacity: 0; }
 }
 .persona-dot { width: 8px; height: 8px; background: currentColor; border-radius: var(--radius-full); flex: 0 0 auto; }
@@ -588,6 +969,7 @@ onUnmounted(() => {
   min-width: 0; min-height: 0; --chat-content-width: 920px; --chat-gutter: var(--space-4); }
 .conversation-header { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: var(--space-2);
   min-height: 56px; padding-inline: clamp(.5rem, 2.2vw, 2rem); border-bottom: 1px solid var(--border); }
+.conversation-header:not(:has(> .history-toggle)) { grid-template-columns: minmax(0, 1fr) auto; }
 .conversation-tools { display: flex; align-items: center; gap: var(--space-1); }
 .conversation-heading { min-width: 0; color: var(--text); font-size: var(--font-size-sm); font-weight: 650; }
 .conversation-heading span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -639,6 +1021,7 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--idea-wash), var(--idea-color) 6%);
 }
 .transcript { min-height: 0; min-width: 0; overflow: auto; overscroll-behavior-y: contain;
+  container: chat-transcript / inline-size;
   padding: clamp(1rem, 3.75vh, 3rem) max(var(--chat-gutter), calc((100% - var(--chat-content-width)) / 2)) var(--space-5); }
 .reading-heading { margin-block-end: var(--space-5); padding-block-end: var(--space-4); border-bottom: 1px solid var(--border); }
 .reading-heading h1 { font: 400 clamp(2rem, 4vw, 3.55rem)/1.08 var(--font-serif); letter-spacing: -.045em; }
@@ -658,7 +1041,10 @@ onUnmounted(() => {
 .message + .message { margin-top: var(--space-5); }
 .message-target { outline: 2px solid var(--focus); outline-offset: -2px; }
 .newer-messages { margin-block-start: var(--space-3); }
-.message.user { width: fit-content; max-width: min(100%, 600px); background: var(--message-user-bg); }
+.message.user {
+  --message-copy-size: 40px; width: fit-content; background: var(--message-user-bg);
+  max-width: min(var(--user-message-limit, 600px), calc(100% - var(--message-copy-gutter, 0px)));
+}
 .message-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--text-muted); font-size: var(--font-size-sm); }
 .message-bookmark { margin-inline-start: auto; }
 .bookmark-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--studio-bookmark); }
@@ -679,12 +1065,28 @@ onUnmounted(() => {
 .message.assistant :deep(.markdown blockquote) { border-inline-start-color: var(--accent); color: var(--text-muted); }
 .message.assistant :deep(.code-frame) { font-size: var(--font-size-sm); }
 @keyframes message-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-:global(:root[data-message-style="bubbles"] .workspace .message) { width: fit-content; max-width: 94%; }
-:global(:root[data-message-style="bubbles"] .workspace .message.assistant) { background: var(--assistant-bubble, var(--message-surface)); }
+:global(:root[data-message-style="bubbles"] .workspace .message.assistant) {
+  width: fit-content; max-width: 94%; background: var(--assistant-bubble, var(--message-surface));
+}
+:global(:root[data-message-style="bubbles"] .workspace .message.user) { --user-message-limit: 94%; }
 :global(:root[data-user-side="right"] .workspace .message.user) { margin-inline-start: auto; }
+.message-meta .message-copy { flex: none; margin-inline-start: auto; }
+.message-copy :deep(.ui-icon-button) { width: var(--message-copy-size); height: var(--message-copy-size); }
+:global(:root[data-user-side="right"] .workspace .message-copy) { order: -1; margin-inline: 0 auto; }
+:is(.message-copy, .message-bookmark) :deep(.tooltip) { inset-inline: auto 0; transform: translateY(4px); }
+:is(.message-copy, .message-bookmark) :deep(.tooltip.open) { transform: translateY(0); }
+:global(:root[data-user-side="right"] .workspace .message-copy .tooltip) { inset-inline: 0 auto; }
+@container chat-transcript (min-width: 640px) {
+  .message.user:has(.message-copy) { --message-copy-gutter: var(--message-copy-size); }
+  .message-meta .message-copy { position: absolute; inset-block-start: var(--space-1); inset-inline-start: 100%; margin-inline: 0; }
+  :global(:root[data-user-side="right"] .workspace .message-copy) { inset-inline: auto 100%; margin-inline: 0; }
+}
 .message-actions, .suggestions, .feedback-reasons { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1); }
-@media (hover: hover) {
-  :global(:root[data-message-actions="hover"] .workspace .message:not(:hover, :focus-within) .message-actions) { opacity: 0; }
+@media (hover: hover) and (not (any-pointer: coarse)) {
+  :global(:root[data-message-actions="hover"] .workspace .message:not(:hover, :focus-within, .actions-expanded) .message-actions) { opacity: 0; }
+}
+@media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
+  :global(:root[data-message-actions="hover"] .workspace .message:not(:hover, :focus-within) .message-copy) { opacity: 0; }
 }
 .typing { display: inline-flex; align-items: center; gap: var(--space-2); }
 .typing span { display: inline-flex; gap: 3px; }
@@ -702,7 +1104,8 @@ onUnmounted(() => {
 .is-start .composer { grid-template-columns: 42px minmax(0, 1fr) auto; padding: var(--space-3); }
 .is-start .composer textarea { grid-area: 1 / 1 / 2 / -1; margin-bottom: var(--space-4); }
 .is-start .composer-action { grid-area: 2 / 3; display: inline-flex; width: auto; padding-inline: var(--space-3); }
-.is-start .composer-attach { grid-area: 2 / 1; }
+.is-start .composer > .composer-attach { grid-area: 2 / 1; }
+.is-start .composer-send-controls { grid-area: 2 / 3; }
 .jump-latest { position: absolute; right: var(--space-4); bottom: calc(100% + var(--space-2)); z-index: 1;
   background: var(--surface-1); box-shadow: var(--elevation-2); }
 .composer { position: relative; transition: box-shadow var(--motion-base), border-color var(--motion-base); }
@@ -715,10 +1118,26 @@ onUnmounted(() => {
 .composer-count { grid-column: 1 / -1; justify-self: end; color: var(--text-muted); }
 .file-list.picked li { max-width: 100%; }
 .file-list.picked small { white-space: nowrap; color: var(--text-muted); }
-.composer { display: grid; grid-template-columns: 42px minmax(0, 1fr) 42px; gap: var(--space-1); align-items: end;
+.picked-file { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1); min-width: 0; }
+.picked-file > span { min-width: 0; overflow-wrap: anywhere; }
+.file-list.picked .picked-error, .rejected-files { color: var(--danger); overflow-wrap: anywhere; white-space: normal; }
+.picked-error { flex-basis: 100%; }
+.rejected-files { grid-column: 1 / -1; font-size: var(--font-size-sm); padding-inline: var(--space-2); }
+.focus-chat .file-list.picked, .focus-chat .rejected-files { max-height: min(20dvh, 9rem); overflow: auto; }
+.focus-chat .file-list.picked :deep(.ui-icon-button) { min-width: 44px; min-height: 44px; }
+.composer { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; gap: var(--space-1); align-items: end;
   border: 1px solid var(--composer-border); border-radius: var(--radius-lg); padding: 5px;
   background: var(--input); box-shadow: var(--elevation-1); }
-.composer.text-only { grid-template-columns: minmax(0, 1fr) 42px; }
+.composer.text-only { grid-template-columns: minmax(0, 1fr) auto; }
+.composer-actions { display: contents; }
+.composer-send-controls { display: flex; align-items: center; gap: var(--space-1); }
+.draft-status, .clear-draft { grid-column: 1 / -1; font-size: var(--font-size-sm); }
+.draft-status { padding-inline: var(--space-2); overflow-wrap: anywhere; }
+.draft-quote blockquote { white-space: pre-wrap; padding-inline-start: var(--space-2); border-inline-start: 2px solid var(--accent); }
+.draft-quote :is(a, button) { min-height: 40px; display: inline-flex; align-items: center; }
+.draft-conflict { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
+.clear-draft { justify-self: start; min-height: 28px; }
+.composer .voice-trigger { min-inline-size: 44px; min-block-size: 44px; }
 .composer textarea { padding: 8px 4px; line-height: 21px; border: 0; resize: none; min-height: 37px; max-height: 142px;
   overflow-y: auto; background: transparent; font-size: max(16px, 1rem); }
 .composer textarea:focus-visible { outline: none; }
@@ -727,13 +1146,20 @@ onUnmounted(() => {
 .composer-attach:hover { color: var(--text); background: var(--surface-2); }
 .stop-button, .stop-button:hover:not(:disabled) { background: var(--danger-fill); border-color: var(--danger-fill); color: white; }
 .adaptation { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
+.navigation-alert { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 @media (max-width: 900px) {
   .workspace { height: calc(var(--chat-viewport-height, 100dvh) - var(--header)); }
   .workspace.history-open { grid-template-columns: minmax(0, 1fr); }
   .conversation { --chat-gutter: var(--space-3); }
   .history-tools { padding-block-start: var(--space-3); }
-  .chat-control, .history-project-add { min-width: 40px; min-height: 40px; }
-  .history :deep(.ui-icon-button) { min-width: 40px; min-height: 40px; }
+  .chat-control, .chat-menu > summary, .history-project-add, .workspace :deep(.ui-icon-button),
+  .composer :is(.composer-attach, .composer-action) { min-width: 44px; min-height: 44px; }
+  .history .history-new, .history-project-list a, .thread-row a, .chat-menu-panel :is(a, button),
+  .clear-draft, .draft-quote :is(a, button), .start-choices button { min-height: 44px; }
+  .message.user { --message-copy-size: 44px; }
+  .workspace:not(.focus-chat) .composer:not(.text-only) { grid-template-columns: 44px minmax(0, 1fr) auto; }
+  .composer textarea { max-height: clamp(37px, calc(var(--chat-viewport-height, 100dvh) - var(--header) - 188px), 142px); }
+  .transcript { scroll-padding-block: var(--space-2); }
   .message.assistant .message-body { font-size: var(--font-size-md); }
 }
 @media (max-width: 480px) {

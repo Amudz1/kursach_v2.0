@@ -9,7 +9,7 @@ const menu = ref<HTMLElement>()
 const id = `menu-${useId()}`
 
 function items() {
-  return [...(menu.value?.querySelectorAll<HTMLElement>('[role=menuitem], [role=menuitemradio]:not([disabled])') ?? [])]
+  return [...(menu.value?.querySelectorAll<HTMLElement>(':is([role=menuitem], [role=menuitemradio]):not([disabled], [aria-disabled="true"])') ?? [])]
 }
 function focusItem(index: number) {
   const list = items()
@@ -25,15 +25,16 @@ function hide(returnFocus = true) {
   open.value = false
   if (returnFocus) root.value?.querySelector<HTMLElement>('[aria-haspopup]')?.focus()
 }
-function toggle() {
+function toggle(event?: MouseEvent) {
   if (open.value) hide()
-  else void show(null)
+  else void show(event?.detail === 0 ? 'first' : null)
 }
 function onTriggerKey(event: KeyboardEvent) {
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault()
     void show(event.key === 'ArrowDown' ? 'first' : 'last')
-  }
+  } else if (event.key === 'Escape' && open.value) { event.preventDefault(); hide() }
+  else if (event.key === 'Tab') hide(false)
 }
 function onMenuKey(event: KeyboardEvent) {
   const list = items()

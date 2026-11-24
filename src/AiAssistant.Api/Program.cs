@@ -2,6 +2,7 @@ using AiAssistant.Api.Ai;
 using AiAssistant.Api.Documentation;
 using AiAssistant.Api.Realtime;
 using AiAssistant.Api.Security;
+using AiAssistant.Api.Voice;
 using AiAssistant.Application.Administration;
 using AiAssistant.Application.Ai;
 using AiAssistant.Application.Auth;
@@ -29,6 +30,7 @@ builder.Services.AddSerilog((_, configuration) => configuration.Enrich.FromLogCo
 builder.Services.AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<RegisterAccount>());
 builder.Services.AddAssistantAuth(builder.Configuration, builder.Environment);
 builder.Services.AddAssistantAi(builder.Configuration, builder.Environment);
+builder.Services.AddAssistantVoice(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<ChatAccess>();
 builder.Services.AddScoped<ChatSubmission>();
 builder.Services.AddSingleton(new AttachmentRoot(Path.GetFullPath(

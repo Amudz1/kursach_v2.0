@@ -3,7 +3,8 @@
 const focusable = 'a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
 
 export function focusableIn(container: HTMLElement) {
-  return [...container.querySelectorAll<HTMLElement>(focusable)].filter((element) => element.offsetParent !== null || element === document.activeElement)
+  return [...container.querySelectorAll<HTMLElement>(focusable)]
+    .filter(element => element.getClientRects().length > 0 && getComputedStyle(element).visibility === 'visible')
 }
 
 /** Keeps Tab and Shift+Tab inside `container`. Call from a keydown handler. */

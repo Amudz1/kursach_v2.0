@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { api, explain } from '../api'
 import { useSession } from '../session'
+import LegalNotice from '../components/LegalNotice.vue'
 import StatisticsPanel from '../components/StatisticsPanel.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import type { Statistics } from '../types'
@@ -114,9 +115,10 @@ async function remove() {
       <p v-if="statsError" class="notice danger" role="alert">{{ statsError }} <button class="text-button" @click="loadStatistics">Повторить</button></p>
       <StatisticsPanel v-if="statistics" :data="statistics" />
     </section>
+    <LegalNotice class="profile-legal" />
     <dialog ref="dialog" aria-labelledby="delete-account">
       <form class="stack" @submit.prevent="remove"><h2 id="delete-account">Удалить аккаунт?</h2>
-        <p>Будут удалены диалоги, файлы, сохранённые факты и настройки.</p>
+        <p>Будут удалены диалоги, файлы, сохранённые факты, настройки и переписка с поддержкой.</p>
         <label>Подтвердите паролем <input v-model="removePassword" type="password" autocomplete="current-password" required></label>
         <p v-if="deletionError" class="notice danger" role="alert">{{ deletionError }}</p>
         <div class="actions"><button type="button" class="secondary" autofocus @click="dialog?.close()">Отмена</button>
@@ -129,4 +131,5 @@ async function remove() {
 <style scoped>
 summary { min-height: 40px; align-content: center; }
 .account-edit-form { padding-top: var(--space-3); }
+.profile-legal { margin-block-start: var(--space-5); }
 </style>

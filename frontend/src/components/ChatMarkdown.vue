@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref, watchPostEffect } from 'vue'
 import { markdown } from '../markdown'
 import { useToast } from './ui/use-toast'
 
-const props = defineProps<{ content: string }>()
+const props = defineProps<{ content: string; answer?: boolean }>()
 const html = computed(() => markdown(props.content))
 const root = ref<HTMLElement>()
 const toast = useToast()
@@ -73,10 +73,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="root" class="markdown" v-html="html"></div>
+  <div ref="root" class="markdown" :class="{ 'answer-markdown': answer }" v-html="html"></div>
 </template>
 
 <style scoped>
+.answer-markdown :deep(:is(h1, h2, h3, h4, h5, h6)) { color: var(--answer-heading-color, inherit); }
+.markdown :deep(table) { max-inline-size: 100%; overscroll-behavior-inline: contain; }
+.markdown :deep(:is(th, td)) { overflow-wrap: normal; }
 .markdown :deep(.code-frame) { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-md); }
 .markdown :deep(.code-toolbar) { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);
   padding-inline: var(--space-3); background: var(--surface-2); border-bottom: 1px solid var(--border); font-size: var(--font-size-xs); }
@@ -87,6 +90,7 @@ onBeforeUnmount(() => {
 .markdown :deep(.code-toolbar button:is(:hover, [aria-pressed="true"])) { background: var(--surface-3); }
 .markdown :deep(.code-body) { display: flex; min-width: 0; }
 .markdown :deep(.code-body pre) { flex: 1 1 auto; margin: 0; border-radius: 0; line-height: 1.5;
+  min-inline-size: 0; overscroll-behavior-inline: contain;
   font-family: var(--font-mono); font-size: .88em; }
 .markdown :deep(.code-body code) { font-size: inherit; }
 .markdown :deep(.code-body .code-gutter) { flex: 0 0 auto; padding-inline: var(--space-2); text-align: end;

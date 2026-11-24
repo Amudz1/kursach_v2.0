@@ -9,6 +9,7 @@ import {
 import { adjustForContrast, hexContrast, parseCssColor, toHex } from '../appearance/color'
 import { accentSwatches as swatches } from '../appearance/swatches'
 import ChatMarkdown from '../components/ChatMarkdown.vue'
+import InterfacePicker from '../components/InterfacePicker.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiBadge from '../components/ui/UiBadge.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -21,7 +22,9 @@ const busy = ref(false)
 const error = ref('')
 const importFile = ref<HTMLInputElement>()
 const previewSurface = ref<HTMLElement>()
-const contrastWarning = ref<{ key: 'accent' | 'accent2'; ratio: number; correction: string | null }[]>([])
+const contrastLabels = { accent: 'Основной акцент', accent2: 'Второй акцент', headingColor: 'Цвет заголовков ответа' }
+type ContrastKey = keyof typeof contrastLabels
+const contrastWarning = ref<{ key: ContrastKey; ratio: number; correction: string | null }[]>([])
 const prefersContrast = window.matchMedia('(prefers-contrast: more)').matches
 function matches(settings: AppearanceSettings, reference: Readonly<AppearanceSettings>) {
   return (Object.keys(settings) as (keyof AppearanceSettings)[]).every((key) => settings[key] === reference[key])
@@ -29,7 +32,7 @@ function matches(settings: AppearanceSettings, reference: Readonly<AppearanceSet
 const dirty = computed(() => !matches(draft.value, savedAppearance.value))
 const modified = computed(() => !matches(draft.value, presetSettings(draft.value.preset)))
 const secondSwatches = [{ value: 'auto', label: 'Автоматический второй акцент', css: 'var(--accent-2)' }, ...swatches.slice(0, 8)]
-const colorKeys = ['accent', 'accent2', 'assistantAvatarColor'] as const
+const colorKeys = ['accent', 'accent2', 'headingColor', 'assistantAvatarColor'] as const
 type SelectKey = Exclude<keyof typeof appearanceOptions, 'preset'>
 type SelectField = { key: SelectKey; label: string; names: string[] }
 const fields: { title: string; items: SelectField[] }[] = [
@@ -56,7 +59,7 @@ const fields: { title: string; items: SelectField[] }[] = [
     { key: 'motion', label: 'Анимация', names: ['Обычная', 'Уменьшенная', 'Выключена'] },
   ] },
 ]
-const codeExample = 'Пример на C#\n\n```csharp\nConsole.WriteLine("Привет, Budz!");\n```'
+const codeExample = '## Пример на C#\n\n```csharp\nConsole.WriteLine("Привет, Budz!");\n```'
 
 function update<K extends keyof AppearanceSettings>(key: K, value: unknown) {
   draft.value = normalizeAppearance({ ...draft.value, [key]: value })
@@ -75,8 +78,7 @@ watchPostEffect(() => {
   const surface = previewSurface.value
   const colors = draft.value
   const background = surface && parseCssColor(getComputedStyle(surface).backgroundColor)
-  contrastWarning.value = background ? colorKeys.slice(0, 2).flatMap((value) => {
-    const key = value as 'accent' | 'accent2'
+  contrastWarning.value = background ? (Object.keys(contrastLabels) as ContrastKey[]).flatMap((key) => {
     const selected = colors[key]
     if (!selected || selected === 'auto') return []
     const ratio = hexContrast(selected, toHex(background))
@@ -140,6 +142,7 @@ async function importTheme(event: Event) {
 <template>
   <section class="page appearance-page">
     <header class="page-heading"><h1>Оформление</h1><p>Настройте интерфейс Budz. Сохранённые настройки доступны в вашем аккаунте.</p></header>
+    <InterfacePicker />
     <p v-if="error" class="notice danger" role="alert">{{ error }}</p>
     <div class="appearance-grid">
       <form class="stack" @submit.prevent="save">
@@ -167,8 +170,10 @@ async function importTheme(event: Event) {
             @update:model-value="update('accent', $event)" />
           <UiColorPicker :model-value="draft.accent2" label="Второй акцент" :swatches="secondSwatches" custom
             custom-label="Свой второй цвет" none-label="Второй цвет пресета" @update:model-value="update('accent2', $event)" />
+          <UiColorPicker :model-value="draft.headingColor" label="Цвет заголовков ответа" :swatches="swatches" custom
+            custom-label="Свой цвет заголовков" none-label="Цвет темы" @update:model-value="update('headingColor', $event)" />
           <p v-for="entry in contrastWarning" :key="entry.key" class="notice" role="status">
-            {{ entry.key === 'accent' ? 'Основной акцент' : 'Второй акцент' }}: контраст {{ entry.ratio.toFixed(2) }}:1.
+            {{ contrastLabels[entry.key] }}: контраст {{ entry.ratio.toFixed(2) }}:1.
             <button v-if="entry.correction" type="button" class="text-button" @click="update(entry.key, entry.correction)">Исправить цвет</button>
           </p>
           <label>Оттенок фона · {{ draft.backgroundTint }}%
@@ -207,7 +212,7 @@ async function importTheme(event: Event) {
         <div class="preview-message message-frame user" :class="[draft.messageStyle, draft.userSide]">Покажи короткий пример на C#.</div>
         <div class="preview-message message-frame assistant" :class="draft.messageStyle">
           <div class="actions"><UiAvatar name="Budz" brand decorative /><strong>Budz</strong></div>
-          <ChatMarkdown :content="codeExample" />
+          <ChatMarkdown :content="codeExample" answer />
         </div>
         <div class="actions">
           <UiButton variant="primary">Продолжить</UiButton><UiBadge tone="info">Пример</UiBadge>

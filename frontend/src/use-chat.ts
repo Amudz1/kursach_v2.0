@@ -4,9 +4,14 @@ import { HubConnectionBuilder, HubConnectionState, type HubConnection } from '@m
 import { ApiError, api, apiResponse, explain } from './api'
 import { useSession } from './session'
 import { appearance } from './appearance'
-import type { Adaptation, Attachment, Chat, Message, MessagePage, Page, Plan, Workspace } from './types'
+import { validateAttachmentSelection } from './chat-attachments'
+import { messageLimit, useChatDrafts, type DraftQuote, type DraftSession } from './chat-drafts'
+import { quotedRequest, submittedLength } from './chat-quotes'
+import { readReadingAnchor, useChatResume, type ReadingAnchor } from './use-chat-resume'
+import type { Adaptation, Attachment, Chat, Message, MessagePage, Page, Persona, Plan, Workspace } from './types'
 
 const terminal = (message: Message) => message.status !== 'pending' && message.status !== 'streaming'
+type TranscriptPosition = { chatId: string; atEnd: boolean; anchor?: ReadingAnchor; scrollTop: number; focusedId?: string }
 
 export function useChat() {
   const route = useRoute()
@@ -35,12 +40,21 @@ export function useChat() {
   const nextAfter = ref<string | null>(null)
   const loadingPage = ref(false)
   const highlightedId = ref('')
+  const messageNavigationError = ref('')
   const offscreenFlow = ref<Message>()
   const bookmarkPending = ref(new Set<string>())
   const chatsHaveMore = ref(false)
   const page = ref(1)
-  const draft = ref('')
-  const files = ref<File[]>([])
+  const owner = computed(() => session.account?.id ?? '')
+  const drafts = useChatDrafts(owner, selectedId, workspaceId, selected)
+  const draft = computed(() => drafts.current.value.text)
+  const draftQuote = computed(() => drafts.current.value.quote)
+  const files = computed(() => drafts.current.value.files)
+  const rejectedFiles = computed(() => drafts.current.value.rejectedFiles)
+  const fileErrors = computed(() => drafts.current.value.fileErrors)
+  const draftRestored = computed(() => drafts.current.value.restored)
+  const draftHadFiles = computed(() => drafts.current.value.hadFiles && !files.value.length)
+  const draftConflict = computed(() => !!drafts.current.value.external)
   const busy = ref(false)
   const loading = ref(false)
   const error = ref('')
@@ -48,13 +62,15 @@ export function useChat() {
   const adaptation = ref<Adaptation>()
   const hub = shallowRef<HubConnection>()
   const flow = computed(() => offscreenFlow.value ?? messages.value.findLast((message) => !terminal(message)))
-  const lastUser = computed(() => nextAfter.value ? undefined : messages.value.findLast((message) => message.role === 'user'))
   const lastAnswer = computed(() => nextAfter.value ? undefined : messages.value.findLast((message) => message.role === 'assistant'))
-  const transcript = ref<HTMLElement>()
+  const transcript = shallowRef<HTMLElement>()
+  const personas = ref<Persona[]>([])
+  const reading = useChatResume(owner, selectedId, workspaceId, selected, transcript)
+  let detachedPosition: TranscriptPosition | undefined
   let requestSignal: AbortController | undefined
   let hubStarting: Promise<void> | undefined
   let timer: ReturnType<typeof setInterval> | undefined
-  let pendingRequest = ''
+  let navigationAttempt = 0
   let disposed = false
   let gap = false
   let projectRequest = 0
@@ -127,12 +143,48 @@ export function useChat() {
       suggestions: [], createdAt: new Date().toISOString(), triggerMessageId: null, rating: null, feedbackReason: null }
   }
 
+  function readingPosition(): TranscriptPosition | undefined {
+    const area = transcript.value
+    const chatId = selectedId.value
+    if (!area || !chatId || !area.clientHeight) return detachedPosition?.chatId === chatId ? detachedPosition : undefined
+    const focused = area.ownerDocument?.activeElement as HTMLElement | undefined
+    const focusedId = focused && area.contains(focused) ? focused.dataset.readingMessage : undefined
+    return { chatId, anchor: readReadingAnchor(area), scrollTop: area.scrollTop, focusedId,
+      atEnd: !nextAfter.value && area.scrollHeight - area.scrollTop - area.clientHeight <= 24 }
+  }
+
+  function scrollToReadingAnchor(area: HTMLElement, target: HTMLElement, offset: number, behavior: ScrollBehavior) {
+    const top = target.getBoundingClientRect().top - area.getBoundingClientRect().top
+    const clipped = Math.min(offset, Math.max(0, target.offsetHeight - 8))
+    area.scrollTo({ top: area.scrollTop + top + clipped - 8, behavior })
+  }
+
+  function bindTranscript(reference: unknown) {
+    const next = reference instanceof HTMLElement ? reference : undefined
+    if (next === transcript.value) return
+    if (transcript.value) detachedPosition = readingPosition()
+    transcript.value = next
+    if (!next) return
+    const position = detachedPosition
+    detachedPosition = undefined
+    if (!position || position.chatId !== selectedId.value) return
+    void nextTick(() => {
+      if (transcript.value !== next || selectedId.value !== position.chatId) return
+      if (position.focusedId) next.querySelector<HTMLElement>(`#message-${position.focusedId}`)?.focus({ preventScroll: true })
+      if (position.atEnd) { next.scrollTop = next.scrollHeight; return }
+      const anchor = position.anchor
+      const target = anchor && next.querySelector<HTMLElement>(`#message-${anchor.messageId}`)
+      if (target && anchor) scrollToReadingAnchor(next, target, anchor.offset, 'instant')
+      else next.scrollTop = position.scrollTop
+    })
+  }
+
   async function scrollBottom(force = false) {
     const element = transcript.value
-    const nearBottom = !element || element.scrollHeight - element.scrollTop - element.clientHeight < 210
+    const nearBottom = !element || element.scrollHeight - element.scrollTop - element.clientHeight <= 24
     if (nextAfter.value || (!nearBottom && !force)) return
     await nextTick()
-    if (element && !nextAfter.value) element.scrollTop = element.scrollHeight
+    if (element && element === transcript.value && !nextAfter.value) element.scrollTop = element.scrollHeight
   }
 
   async function loadMessages(force = false, direction?: 'before' | 'after') {
@@ -151,8 +203,19 @@ export function useChat() {
       const result = await api<MessagePage>(`/chats/${id}/messages${direction ? `?${direction}=${cursor}` : ''}`, { signal: controller.signal })
       if (id !== selectedId.value || controller.signal.aborted) return
       if (direction === 'before') {
+        const area = transcript.value
+        const anchor = area && readReadingAnchor(area)
+        const top = area?.scrollTop ?? 0
+        const height = area?.scrollHeight ?? 0
         messages.value = [...result.items.filter(item => !messages.value.some(old => old.id === item.id)), ...messages.value]
         nextBefore.value = result.nextBefore
+        if (area) {
+          await nextTick()
+          if (id !== selectedId.value || transcript.value !== area || controller.signal.aborted) return
+          const target = anchor && area.querySelector<HTMLElement>(`#message-${anchor.messageId}`)
+          if (anchor && target) scrollToReadingAnchor(area, target, anchor.offset, 'instant')
+          else area.scrollTop = top + area.scrollHeight - height
+        }
       } else if (direction === 'after') {
         result.items.forEach(updateMessage)
         nextAfter.value = result.nextAfter
@@ -165,6 +228,7 @@ export function useChat() {
           item.createdAt < firstReturned.createdAt && !result.items.some((stored) => stored.id === item.id)) : []
         const combined = result.items.map((item) => {
           const live = local.get(item.id)
+          if (live && terminal(live) && !terminal(item)) return live
           if (!terminal(item) && live?.content && !item.content) return { ...item, content: live.content }
           return item
         })
@@ -185,8 +249,8 @@ export function useChat() {
   async function jumpToMessage(messageId: string, offset = 0) {
     const chatId = selectedId.value
     if (!chatId || !/^[\da-f-]{36}$/i.test(messageId)) return false
+    requestSignal?.abort()
     if (!messages.value.some(item => item.id === messageId)) {
-      requestSignal?.abort()
       const controller = new AbortController()
       requestSignal = controller
       loadingPage.value = true
@@ -209,17 +273,37 @@ export function useChat() {
     await nextTick()
     if (chatId !== selectedId.value) return false
     const container = transcript.value
-    const target = document.getElementById(`message-${messageId}`)
+    const target = container?.querySelector<HTMLElement>(`#message-${messageId}`)
     if (!container || !target) return false
-    const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top
     const animate = !offset && appearance.value.motion === 'full' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
     target.focus({ preventScroll: true })
-    container.scrollTo({ top: container.scrollTop + top + Math.min(offset, Math.max(0, target.offsetHeight - 8)) - 8,
-      behavior: animate ? 'smooth' : 'instant' })
+    scrollToReadingAnchor(container, target, offset, animate ? 'smooth' : 'instant')
     clearTimeout(highlightTimer)
     highlightedId.value = messageId
     highlightTimer = setTimeout(() => { highlightedId.value = '' }, 1800)
     return true
+  }
+
+  async function openMessage(messageId: string, offset = 0) {
+    const currentChat = selectedId.value
+    const attempt = ++navigationAttempt
+    messageNavigationError.value = ''
+    let failure = 'Сообщение недоступно.'
+    try {
+      if (await jumpToMessage(messageId, offset)) return true
+    } catch (reason) { failure = explain(reason) }
+    if (currentChat === selectedId.value && attempt === navigationAttempt) messageNavigationError.value = failure
+    return false
+  }
+
+  async function returnToConversation() {
+    navigationAttempt++
+    messageNavigationError.value = ''
+    if ('at' in route.query || 'offset' in route.query) {
+      await router.replace({ query: { ...route.query, at: undefined, offset: undefined } })
+    }
+    await loadMessages(true)
+    transcript.value?.focus({ preventScroll: true })
   }
 
   async function toggleBookmark(message: Message) {
@@ -293,9 +377,10 @@ export function useChat() {
     catch { linked.value = false }
   }
 
-  async function create() {
+  async function create(submittedDraft?: DraftSession) {
     const scope = workspaceQuery.value
     const result = await api<{ id: string }>('/chats', { method: 'POST', body: { workspaceId: workspaceId.value || null } })
+    if (submittedDraft) drafts.moveToNewChat(submittedDraft, result.id)
     await loadChats()
     await router.push({ path: `/chats/${result.id}`, query: scope })
     return result.id
@@ -317,71 +402,119 @@ export function useChat() {
     catch (reason) { error.value = explain(reason); return false }
   }
 
-  async function move(workspace: string) {
-    const id = selectedId.value
-    if (!id || flow.value) return
-    error.value = ''
-    try {
-      await api(`/chats/${id}/workspace`, { method: 'PUT', body: { workspaceId: workspace || null } })
-      if (id !== selectedId.value) return
-      chats.value = chats.value.filter((chat) => chat.id !== id)
-      await loadSelected(id)
-      await router.replace({ path: `/chats/${id}`, query: workspace ? { workspace } : {} })
-      await loadChats()
-    } catch (reason) { error.value = explain(reason) }
+  async function move(id: string, workspace: string) {
+    const destination = workspace || null
+    await api<void>(`/chats/${id}/workspace`, { method: 'PUT', body: { workspaceId: destination } })
+    const chat = chats.value.find((item) => item.id === id)
+    if (chat) chat.workspaceId = destination
+    if (detail.value?.id === id) detail.value.workspaceId = destination
+
+    if (id === selectedId.value) {
+      const query = { ...route.query, workspace: destination ?? undefined }
+      await router.replace({ path: route.path, query })
+    } else {
+      await loadProjectChats()
+    }
   }
 
-  async function remove() {
-    const id = selectedId.value
+  async function remove(id = selectedId.value) {
     if (!id) return
     try {
       await api<void>(`/chats/${id}`, { method: 'DELETE' })
-      await router.replace({ path: '/chats', query: workspaceQuery.value })
+      if (id === selectedId.value) {
+        await router.replace({ path: '/chats', query: workspaceQuery.value })
+      }
       await loadChats()
     } catch (reason) { error.value = explain(reason) }
   }
 
   function changeDraft(value: string) {
-    draft.value = value
-    pendingRequest = ''
+    const entry = drafts.current.value
+    entry.text = value
+    drafts.update(entry)
+  }
+
+  function setDraftQuote(quote?: DraftQuote) {
+    const entry = drafts.current.value
+    entry.quote = quote
+    drafts.update(entry)
   }
 
   function chooseFiles(items: FileList | null) {
-    if (!items) return
-    if (files.value.length + items.length > 4) { error.value = 'Можно прикрепить до четырёх файлов.'; return }
-    files.value = [...files.value, ...Array.from(items)]
-    pendingRequest = ''
+    if (!items?.length || busy.value || selected.value?.expiresAt) return
+    const entry = drafts.current.value
+    const { accepted, rejected } = validateAttachmentSelection(entry.files, Array.from(items), currentPlan.value?.maxAttachmentBytes)
+    entry.rejectedFiles = rejected
+    if (accepted.length) {
+      entry.files = [...entry.files, ...accepted]
+      entry.hadFiles = false
+      drafts.update(entry)
+    }
   }
 
   function removeFile(index: number) {
-    files.value.splice(index, 1)
-    pendingRequest = ''
+    if (busy.value) return
+    const entry = drafts.current.value
+    const file = entry.files[index]
+    if (!file) return
+    entry.fileErrors.delete(file)
+    entry.files.splice(index, 1)
+    drafts.update(entry)
   }
 
   async function send() {
-    if ((!draft.value.trim() && !files.value.length) || busy.value || flow.value) return
+    const entry = drafts.current.value
+    const temporary = Boolean(selected.value?.expiresAt)
+    const attachments = temporary ? [] : [...entry.files]
+    const content = entry.text
+    const quote = entry.quote
+    const formattedContent = quotedRequest(content, quote)
+    const preferredModel = model.value
+    if ((!content.trim() && (quote || !attachments.length)) || busy.value || flow.value) return
+    if (submittedLength(formattedContent) > messageLimit) {
+      error.value = quote
+        ? 'Вопрос и цитата вместе превышают 10 000 символов. Сократите текст перед отправкой.'
+        : 'Сообщение превышает 10 000 символов. Сократите текст перед отправкой.'
+      return
+    }
     error.value = ''; busy.value = true
-    if (!pendingRequest) pendingRequest = crypto.randomUUID()
+    const requestId = entry.requestId || (entry.requestId = crypto.randomUUID())
+    if (!temporary) entry.fileErrors.clear()
     try {
-      const id = selectedId.value || await create()
+      const id = selectedId.value || await create(entry)
       if (id === selectedId.value) {
         if (nextAfter.value) await loadMessages(true)
+        else await scrollBottom(true)
         await ensureHub()
       }
       const data = new FormData()
-      data.set('content', draft.value)
-      data.set('requestId', pendingRequest)
-      if (model.value) data.set('model', model.value)
-      files.value.forEach((file) => data.append('attachment', file))
+      data.set('content', formattedContent)
+      data.set('requestId', requestId)
+      if (preferredModel) data.set('model', preferredModel)
+      attachments.forEach((file) => data.append('attachment', file))
       const answer = await api<{ id: string }>(`/chats/${id}/messages`, { method: 'POST', body: data })
       if (id === selectedId.value && !messages.value.some((item) => item.id === answer.id))
         updateMessage({ ...newPlaceholder(answer.id), status: 'pending' })
-      draft.value = ''; files.value = []; pendingRequest = ''
+      if (entry.text === content && entry.quote === quote) drafts.clear(entry)
+      else {
+        entry.files = entry.files.filter(file => !attachments.includes(file))
+        entry.hadFiles = false
+        drafts.update(entry)
+      }
       await loadChats()
-      if (selected.value?.expiresAt) await loadSelected(id)
-      await loadMessages()
-      await scrollBottom(true)
-    } catch (reason) { error.value = explain(reason) }
+      if (id === selectedId.value) {
+        if (selected.value?.expiresAt) await loadSelected(id)
+        await loadMessages()
+      }
+    } catch (reason) {
+      if (reason instanceof ApiError) {
+        attachments.forEach((file, index) => {
+          const message = reason.fields?.[`attachments[${index}]`]?.[0]
+          if (message) entry.fileErrors.set(file, message)
+        })
+      }
+      if (entry === drafts.current.value && (!entry.fileErrors.size || temporary)) error.value = explain(reason)
+    }
     finally { busy.value = false }
   }
 
@@ -396,15 +529,14 @@ export function useChat() {
     } catch { error.value = 'Не удалось остановить ответ. Дождитесь соединения и повторите.' }
   }
 
-  async function revise(target: Message, text?: string) {
+  async function regenerate(target: Message) {
     error.value = ''; busy.value = true
     try {
-      const path = `/messages/${target.id}${text === undefined ? '/regenerate' : ''}`
-      await api(path, { method: text === undefined ? 'POST' : 'PATCH',
-        body: { requestId: crypto.randomUUID(), content: text } })
+      await api(`/messages/${target.id}/regenerate`, {
+        method: 'POST', body: { requestId: crypto.randomUUID() },
+      })
       await loadMessages(true)
-      return true
-    } catch (reason) { error.value = explain(reason); return false }
+    } catch (reason) { error.value = explain(reason) }
     finally { busy.value = false }
   }
 
@@ -440,6 +572,9 @@ export function useChat() {
   }
 
   watch(selectedId, async (id) => {
+    detachedPosition = undefined
+    navigationAttempt++
+    messageNavigationError.value = ''
     linked.value = false; gap = false; nextBefore.value = null; messages.value = []; error.value = ''
     requestSignal?.abort()
     requestSignal = undefined
@@ -449,17 +584,24 @@ export function useChat() {
     const anchor = typeof route.query.at === 'string' ? route.query.at : ''
     const offset = Math.max(0, Number(route.query.offset) || 0)
     async function initialPage() {
-      if (anchor) {
-        try { if (await jumpToMessage(anchor, offset)) return }
-        catch (reason) { if (id === selectedId.value) error.value = explain(reason) }
-      }
+      if (anchor && await openMessage(anchor, offset)) return
       if (id === selectedId.value) await loadMessages(true)
     }
     await Promise.all([initialPage(), loadSelected(id), ensureHub()])
     if (id === selectedId.value) loading.value = false
   }, { immediate: true })
+  watch([selectedId, () => route.query.at, () => route.query.offset], ([id, anchor, rawOffset], [previousId]) => {
+    if (id && id === previousId && typeof anchor === 'string') {
+      void openMessage(anchor, Math.max(0, Number(rawOffset) || 0))
+    }
+  })
   watch([workspaceId, selectedId], () => { void loadProjectChats() }, { immediate: true })
+  watch(search, (_, __, onCleanup) => {
+    const searchTimer = window.setTimeout(() => void loadChats(), 250)
+    onCleanup(() => window.clearTimeout(searchTimer))
+  })
   onMounted(async () => {
+    void api<Persona[]>('/personas').then(items => { personas.value = items }).catch(() => { /* Use the fallback colors. */ })
     timer = setInterval(() => {
       if (flow.value && (!linked.value || gap)) void loadMessages()
       if (flow.value && !linked.value) void ensureHub()
@@ -476,7 +618,12 @@ export function useChat() {
 
   return { chats, messages, selectedId, selected, model, currentPlan, search, workspaces, workspaceId, workspaceQuery, currentWorkspace,
     projectChats, projectHasMore, projectLoading, loadProjectChats, loadWorkspaces, openProject, projectRemoved,
-    nextBefore, nextAfter, loadingPage, highlightedId, bookmarkPending, chatsHaveMore, draft, files, busy, loading, error, linked, flow, lastUser, lastAnswer, adaptation, transcript,
-    loadChats, loadMessages, jumpToMessage, toggleBookmark, newChat, patch, move, remove, changeDraft, chooseFiles, removeFile, send, stop,
-    revise, rate, decide, download }
+    nextBefore, nextAfter, loadingPage, highlightedId, messageNavigationError, bookmarkPending, chatsHaveMore, draft, draftQuote,
+    draftRestored, draftHadFiles, draftConflict, files, rejectedFiles, fileErrors, busy, loading, error, linked, flow, lastAnswer, adaptation,
+    transcript, bindTranscript, readingPosition, personas, ...reading,
+    clearDraft: () => drafts.clear(), useExternalDraft: drafts.useExternal, keepOwnDraft: drafts.keepOwn, setDraftQuote,
+    loadChats, loadMessages, openMessage, returnToConversation, toggleBookmark, newChat, patch, move, remove, changeDraft, chooseFiles, removeFile, send, stop,
+    regenerate, rate, decide, download }
 }
+
+export type ChatState = ReturnType<typeof useChat>

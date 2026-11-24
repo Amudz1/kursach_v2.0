@@ -86,7 +86,7 @@ public static partial class AppearanceSettingsValidator
             return value.ValueKind == JsonValueKind.String && options.Contains(value.GetString(), StringComparer.Ordinal);
         return key switch
         {
-            "accent" or "assistantAvatarColor" => IsColor(value),
+            "accent" or "assistantAvatarColor" or "headingColor" => IsColor(value),
             "accent2" => IsColor(value) || value.ValueKind == JsonValueKind.String && value.GetString() == "auto",
             "backgroundTint" => value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var tint) && tint is >= 0 and <= 30,
             "fontScale" => value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var scale) && scale is 90 or 100 or 110 or 120,

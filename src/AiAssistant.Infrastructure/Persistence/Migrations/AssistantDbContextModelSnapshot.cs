@@ -792,6 +792,47 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AiAssistant.Domain.SupportMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("content");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("FromSupport")
+                        .HasColumnType("boolean")
+                        .HasColumnName("from_support");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Id");
+
+                    b.HasIndex("UserId", "RequestId")
+                        .IsUnique();
+
+                    b.ToTable("support_messages", (string)null);
+                });
+
             modelBuilder.Entity("AiAssistant.Domain.Transaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -884,6 +925,14 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(254)")
                         .HasColumnName("email");
 
+                    b.Property<string>("InterfaceVariant")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("current")
+                        .HasColumnName("interface_variant");
+
                     b.Property<bool>("IsBlocked")
                         .HasColumnType("boolean")
                         .HasColumnName("is_blocked");
@@ -929,7 +978,10 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                     b.HasIndex("NormalizedUsername")
                         .IsUnique();
 
-                    b.ToTable("users", (string)null);
+                    b.ToTable("users", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_users_interface_variant", "interface_variant IN ('current', 'focus')");
+                        });
                 });
 
             modelBuilder.Entity("AiAssistant.Domain.UserMemory", b =>
@@ -1142,6 +1194,15 @@ namespace AiAssistant.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("AiAssistant.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AiAssistant.Domain.SupportMessage", b =>
+                {
                     b.HasOne("AiAssistant.Domain.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")

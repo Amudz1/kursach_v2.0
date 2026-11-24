@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { Brain, CreditCard, Database, Infinity as Unlimited, LogOut, MessagesSquare, Moon, Palette, ShieldCheck, SlidersHorizontal, Sun, User } from 'lucide-vue-next'
+import { BookOpen, Brain, CreditCard, Database, Infinity as Unlimited, LogOut, MessagesSquare, Moon, Palette, ShieldCheck, SlidersHorizontal, Sun, User } from 'lucide-vue-next'
 import { appearance, setAppearance } from '../appearance'
 import { explain } from '../api'
 import { useSession } from '../session'
 import type { Account } from '../types'
 import AppDrawer from './AppDrawer.vue'
+import InterfaceMenuItems from './InterfaceMenuItems.vue'
 import UiAvatar from './ui/UiAvatar.vue'
 import UiDropdown from './ui/UiDropdown.vue'
 import UiProgress from './ui/UiProgress.vue'
@@ -22,7 +23,8 @@ const menuButton = ref<HTMLButtonElement>()
 const navigation = ref<HTMLElement>()
 const indicator = ref('')
 const drawerId = 'app-navigation-drawer'
-const active = (to: string) => route.path === to ? 'page' : to === '/chats' && route.name === 'chat' ? 'location' : undefined
+const active = (to: string) => route.path === to ? 'page'
+  : (['/chats', '/help', '/admin'].includes(to) && route.path.startsWith(`${to}/`)) ? 'location' : undefined
 const primary = computed(() => [
   { to: '/chats', label: 'Диалоги', icon: MessagesSquare },
   { to: '/personalization', label: 'Персонализация', icon: SlidersHorizontal },
@@ -34,6 +36,7 @@ const secondary = [
   { to: '/profile', label: 'Профиль', icon: User },
   { to: '/appearance', label: 'Оформление', icon: Palette },
   { to: '/data', label: 'Данные', icon: Database },
+  { to: '/help', label: 'Справка', icon: BookOpen },
 ]
 const systemDark = window.matchMedia('(prefers-color-scheme: dark)')
 const darkPreference = ref(systemDark.matches)
@@ -114,12 +117,14 @@ watch(() => route.fullPath, async () => {
             <UiAvatar class="avatar" :name="account.username" decorative />
           </button>
         </template>
-        <RouterLink v-for="item in secondary" :key="item.to" :to="item.to" role="menuitem" tabindex="-1">
+        <RouterLink v-for="item in secondary" :key="item.to" :to="item.to" :aria-current="active(item.to)" role="menuitem" tabindex="-1">
           <component :is="item.icon" aria-hidden="true" />{{ item.label }}
         </RouterLink>
         <button type="button" role="menuitem" tabindex="-1" @click="toggleTheme">
           <component :is="dark ? Sun : Moon" aria-hidden="true" />{{ dark ? 'Светлая тема' : 'Тёмная тема' }}
         </button>
+        <div role="separator"></div>
+        <InterfaceMenuItems />
         <div role="separator"></div>
         <button type="button" role="menuitem" tabindex="-1" @click="logout"><LogOut aria-hidden="true" />Выйти</button>
       </UiDropdown>
@@ -141,6 +146,7 @@ watch(() => route.fullPath, async () => {
       <RouterLink v-for="item in secondary" :key="item.to" :to="item.to" :aria-current="active(item.to)" @click="close">
         <component :is="item.icon" aria-hidden="true" />{{ item.label }}
       </RouterLink>
+      <InterfaceMenuItems drawer @select="close" />
       <button type="button" @click="logout"><LogOut aria-hidden="true" />Выйти</button>
     </nav>
   </AppDrawer>
@@ -148,6 +154,7 @@ watch(() => route.fullPath, async () => {
 
 <style scoped>
 .header-brand, .header-account { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.header-account :deep(.menu) { max-height: calc(100dvh - var(--header) - 10px); overflow: auto; }
 .chat-topbar { background: var(--surface-0); }
 .topbar .brand { font-size: 2.45rem; }
 .brand-dot { display: inline-block; color: var(--studio-bookmark); transition: transform var(--motion-base) var(--ease-spring); }
@@ -181,7 +188,7 @@ watch(() => route.fullPath, async () => {
 .drawer-close { display: inline-grid; }
 .drawer-nav { display: grid; gap: var(--space-1); }
 .drawer-account { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); }
-.drawer-nav a, .drawer-nav button { display: flex; gap: var(--space-3); align-items: center; min-height: 44px;
+.drawer-nav a, .drawer-nav button, .drawer-nav :deep(.drawer-options button) { display: flex; gap: var(--space-3); align-items: center; min-height: 44px;
   padding: var(--space-2) var(--space-3); border: 1px solid transparent; border-radius: var(--radius-md); background: transparent;
   color: var(--text); text-decoration: none; text-align: left; }
 .drawer-nav :is(a, button):hover { background: var(--panel-active); }
@@ -190,6 +197,8 @@ watch(() => route.fullPath, async () => {
   .topbar { grid-template: auto / minmax(0, 1fr) auto; gap: 4px; padding: 0 8px; }
   .top-navigation { display: none; }
   .menu-toggle { display: inline-grid; flex: 0 0 auto; }
+  .menu-toggle, .account-link { width: 44px; height: 44px; }
+  .header-account :deep([role="menuitem"]), .header-account :deep([role="menuitemradio"]) { min-height: 44px; }
   .header-brand { gap: 4px; }
   .topbar .brand { font-size: 1.9rem; }
 }

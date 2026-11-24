@@ -26,6 +26,12 @@ services:
       Database__DemoPassword: "${DEMO_PASSWORD:-Budz-local-demo-2026}"
       Ai__Mode: "${AI_MODE:-Demo}"
       OpenRouter__ApiKey: "${OPENROUTER_API_KEY:-}"
+      Voice__Mode: "${VOICE_MODE:-Disabled}"
+      Voice__OpenAiApiKey: "${VOICE_OPENAI_API_KEY:-}"
+      Voice__MaxSeconds: "${VOICE_MAX_SECONDS:-120}"
+      Voice__MaxBytes: "${VOICE_MAX_BYTES:-12582912}"
+      Voice__StartsPerMinute: "${VOICE_STARTS_PER_MINUTE:-6}"
+      Voice__TimeoutSeconds: "${VOICE_TIMEOUT_SECONDS:-45}"
       Files__Directory: /app/attachments
     volumes:
       - attachment-data:/app/attachments

@@ -25,6 +25,7 @@ const labels = { success: 'Готово', info: 'Сообщение', warning: '
         <div v-for="toast in toasts.filter((item) => item.tone === 'danger')" :key="toast.id" class="toast danger">
           <CircleX class="icon" aria-hidden="true" />
           <p><span class="sr-only">{{ labels.danger }}: </span><span>{{ toast.text }}</span></p>
+          <button v-if="toast.action" type="button" class="action" @click="toast.action.run(); dismiss(toast.id)">{{ toast.action.label }}</button>
           <button type="button" class="close" aria-label="Закрыть уведомление" @click="dismiss(toast.id)"><X aria-hidden="true" /></button>
         </div>
       </TransitionGroup>

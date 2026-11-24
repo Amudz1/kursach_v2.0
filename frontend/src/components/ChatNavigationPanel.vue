@@ -43,13 +43,13 @@ async function load(kind: Kind, more = false) {
   }
 }
 
-async function show(kind: typeof mode.value) {
+async function show(kind: typeof mode.value, refresh = false) {
   mode.value = kind
   if (!dialog.value?.open) dialog.value?.showModal()
   await nextTick()
   if (kind === 'search') {
     searchInput.value?.focus()
-    if (!results.search.items.length && term.value.trim()) void load('search')
+    if ((refresh || !results.search.items.length) && term.value.trim()) void load('search')
   } else {
     void load('questions')
     void load('bookmarks')
@@ -160,5 +160,6 @@ defineExpose({ show })
 @media (max-width: 900px) {
   .navigation-panel { inset: auto 0 0; width: 100%; max-height: 82dvh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
   .navigation-content { padding-block-end: max(var(--space-4), env(safe-area-inset-bottom, 0px)); }
+  .navigation-item, .navigation-content :deep(button) { min-height: 44px; min-width: 44px; }
 }
 </style>

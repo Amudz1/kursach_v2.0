@@ -93,11 +93,14 @@ public sealed partial class ChatSubmission(IAssistantData data, ChatAccess acces
         }
         catch (FileRejectedException exception)
         {
-            return Result<IReadOnlyList<PreparedAttachment>>.Fail(ErrorKind.Validation, "invalid_attachment", exception.Message);
+            return new(null, new AppError(ErrorKind.Validation, "invalid_attachment", exception.Message,
+                new Dictionary<string, string[]> { [$"attachments[{result.Count}]"] = [exception.Message] }));
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return Result<IReadOnlyList<PreparedAttachment>>.Fail(ErrorKind.Validation, "attachment_timeout", "Не удалось разобрать файл вовремя.");
+            const string message = "Не удалось разобрать файл вовремя.";
+            return new(null, new AppError(ErrorKind.Validation, "attachment_timeout", message,
+                new Dictionary<string, string[]> { [$"attachments[{result.Count}]"] = [message] }));
         }
     }
 

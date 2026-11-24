@@ -12,6 +12,7 @@ namespace AiAssistant.Application.Auth;
 public sealed class AccountHandlers(IAssistantData data, IPasswordService passwords, TimeProvider clock,
     IUsageLimitService usage, AttachmentLifecycle attachments, GenerationStops stops, PreferenceReadCache cache) :
     IRequestHandler<GetAccount, Result<AccountView>>,
+    IRequestHandler<ChangeInterfaceVariant, Result<Unit>>,
     IRequestHandler<ChangeEmail, Result<Unit>>,
     IRequestHandler<ChangePassword, Result<Unit>>,
     IRequestHandler<DeleteAccount, Result<Unit>>
@@ -24,7 +25,28 @@ public sealed class AccountHandlers(IAssistantData data, IPasswordService passwo
         var onboardingCompleted = await data.FirstAsync(data.Query<PersonalizationProfile>()
             .Where(profile => profile.UserId == user.Id).Select(profile => profile.OnboardingCompleted), cancellationToken);
         var limits = await usage.ReadAsync(user.Id, cancellationToken);
-        return Result<AccountView>.Ok(new(user.Id, user.Username, user.Email, user.Role.ToString(), onboardingCompleted, limits));
+        return Result<AccountView>.Ok(new(user.Id, user.Username, user.Email, user.Role.ToString(), onboardingCompleted, limits,
+            user.InterfaceVariant));
+    }
+
+    public Task<Result<Unit>> Handle(ChangeInterfaceVariant request, CancellationToken cancellationToken)
+    {
+        var variant = request.InterfaceVariant;
+        if (variant is not (User.CurrentInterface or User.FocusInterface))
+            return Task.FromResult(Result<Unit>.Invalid(new Dictionary<string, string[]>
+                { ["interfaceVariant"] = ["Выберите интерфейс current или focus."] }));
+
+        return data.ForUserAsync(request.UserId, async ct =>
+        {
+            var user = await data.FirstAsync(data.Query<User>(true).Where(user => user.Id == request.UserId && !user.IsBlocked), ct);
+            if (user is null)
+                return Result<Unit>.Fail(ErrorKind.NotFound, "account_not_found", "Аккаунт не найден.");
+            if (user.InterfaceVariant == variant) return Result<Unit>.Ok(Unit.Value);
+
+            user.InterfaceVariant = variant;
+            await data.SaveAsync(ct);
+            return Result<Unit>.Ok(Unit.Value);
+        }, cancellationToken);
     }
 
     public async Task<Result<Unit>> Handle(ChangeEmail request, CancellationToken cancellationToken)
